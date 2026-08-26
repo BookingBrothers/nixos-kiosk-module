@@ -560,6 +560,26 @@ let
       Locked = cfg.permissions.storageAccess.locked;
     };
   };
+
+  # Firefox's Handlers policy, per Mozilla's own docs: "If you don't
+  # want to have a default handler, use an empty object for the first
+  # handler." Combined with ask=false, this is the documented way to
+  # make Firefox treat a scheme as having nothing to hand off to and
+  # nothing to ask about, rather than falling back to its own "choose
+  # an application" dialog.
+  # allowedSchemes subtracted here, not left for the option merge itself
+  # -- plain NixOS list options only ever concatenate multiple
+  # definitions together, they can't express "all of this EXCEPT these"
+  # the way an explicit subtraction step can.
+  effectiveBlockedSchemes = lib.subtractLists cfg.navigation.allowedSchemes cfg.navigation.blockedSchemes;
+
+  blockedSchemesPolicy = lib.optionalAttrs (effectiveBlockedSchemes != [ ]) {
+    Handlers.schemes = lib.genAttrs effectiveBlockedSchemes (_scheme: {
+      action = "useHelperApp";
+      ask = false;
+      handlers = [ { } ];
+    });
+  };
 in
 {
   options.services.kiosk-mode = {
@@ -949,6 +969,71 @@ in
           links out to).
         '';
       };
+
+      blockedSchemes = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "webcal" ];
+        description = ''
+          URI schemes that should silently do nothing when navigated to
+          -- no native "choose an application" dialog, no app launches.
+          Confirmed live: a mailto: link produces exactly that dialog
+          (offering e.g. Gmail or an arbitrary "Choose other
+          Application" picker), as real a kiosk-escape route as an
+          unrestricted http(s) link, just via a different mechanism --
+          same reasoning as `allowedHosts` above, but these schemes
+          need blocking unconditionally rather than allow-listed, since
+          there's no legitimate reason a kiosk would ever want to hand
+          off to a native app at all.
+
+          This is a *stronger* protection than nav-guard.js's own click-
+          time scheme check (which already treats any non-http(s)/non-
+          javascript: scheme as disallowed) -- that only catches an
+          actual link CLICK, same limitation `allowedHosts`' own
+          redirect check exists to cover for http(s). This instead
+          configures Firefox's Handlers policy directly, at the layer
+          that resolves ANY navigation to one of these schemes (a
+          click, a script-driven `location.href` change, a redirect --
+          it doesn't matter how it was reached), to have no default
+          handler and never ask.
+
+          `[ ]` here (the option's own declared default) is NOT what
+          actually ships -- this module's own `config` separately
+          contributes a comprehensive built-in list covering every
+          commonly-encountered app-handoff scheme, which ordinary
+          NixOS list-option merging unions with whatever you add here
+          (two plain list definitions for the same option, from two
+          different modules, concatenate rather than one replacing the
+          other -- confirmed via an isolated evalModules test, not
+          assumed). Add your own entries for anything a specific site
+          links to that isn't already covered; use `allowedSchemes`
+          below to remove one of the built-in ones instead (plain list
+          subtraction can't express "minus this one item" the way
+          addition can).
+
+          Blocking every scheme by DEFAULT the way `allowedHosts`
+          allow-LISTS hosts isn't possible here: Firefox's Handlers
+          policy has no wildcard/catch-all entry, only explicitly named
+          schemes, and there's no way to enumerate every URI scheme
+          that might ever exist. The built-in list is deliberately
+          broad to get as close to that as practically possible, but
+          it's a known-schemes list, not a true default-deny.
+        '';
+      };
+
+      allowedSchemes = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "webcal" ];
+        description = ''
+          Schemes to exclude from `blockedSchemes`' final, effective
+          list -- the only way to remove one of this module's own
+          built-in blocked schemes (or one you added yourself from
+          another module) without needing to know or repeat the whole
+          rest of that list, since plain NixOS list options only ever
+          concatenate, never subtract.
+        '';
+      };
     };
 
     audio.enable = lib.mkEnableOption "PipeWire audio for the kiosk session (off by default -- only worth it if the site actually plays sound and the hardware has a real output route)";
@@ -1051,6 +1136,43 @@ in
         assertion = cfg.idleTimeoutMinutes == 0 || cfg.touch != null;
         message = "services.kiosk-mode.idleTimeoutMinutes > 0 requires services.kiosk-mode.touch to be set -- nothing to watch for activity otherwise";
       }
+    ];
+
+    # The built-in blockedSchemes list -- see that option's own
+    # description for why this lives here (a plain assignment, not the
+    # option's declaration-level `default`) rather than being the thing
+    # that shows up as its literalExample/documented default: a plain
+    # list assignment from THIS module and a plain list assignment from
+    # a caller's own module concatenate (confirmed via an isolated
+    # evalModules test), where the option's declaration-level `default`
+    # would instead just get discarded outright the moment a caller
+    # defines the option at all -- the same "does this merge or does it
+    # replace" distinction `extensions`/`navigation.buttons` already
+    # document for the attrsOf-submodule case, just the listOf version
+    # of it.
+    #
+    # Deliberately broad, not exhaustive -- Firefox's Handlers policy
+    # has no wildcard entry, only named schemes, so "block everything"
+    # isn't achievable here the way `allowedHosts` allow-lists hosts;
+    # this is this module's best attempt at covering the schemes real
+    # web content is actually likely to link to for external-app
+    # handoff. mailto/tel/sms are confirmed live (see blockedSchemes'
+    # own description); the rest are well-known scheme names, not
+    # independently verified against a real triggering site the way
+    # those three are.
+    services.kiosk-mode.navigation.blockedSchemes = [
+      "mailto"
+      "tel"
+      "sms"
+      "smsto"
+      "callto"
+      "skype"
+      "whatsapp"
+      "webcal"
+      "magnet"
+      "irc"
+      "ircs"
+      "xmpp"
     ];
 
     # The three built-in extensions -- see the `extensions` option's own
@@ -1296,6 +1418,7 @@ in
         { ExtensionSettings = extensionSettingsFromApi; }
         (lib.mkIf (permissionsPolicy != { }) { Permissions = permissionsPolicy; })
         (lib.mkIf (storageAccessPolicy != { }) storageAccessPolicy)
+        (lib.mkIf (blockedSchemesPolicy != { }) blockedSchemesPolicy)
       ];
     };
 

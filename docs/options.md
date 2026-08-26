@@ -1041,6 +1041,121 @@ null
 
 
 
+## services\.kiosk-mode\.navigation\.allowedSchemes
+
+
+
+Schemes to exclude from ` blockedSchemes `’ final, effective
+list – the only way to remove one of this module’s own
+built-in blocked schemes (or one you added yourself from
+another module) without needing to know or repeat the whole
+rest of that list, since plain NixOS list options only ever
+concatenate, never subtract\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "webcal"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.navigation\.blockedSchemes
+
+
+
+URI schemes that should silently do nothing when navigated to
+– no native “choose an application” dialog, no app launches\.
+Confirmed live: a mailto: link produces exactly that dialog
+(offering e\.g\. Gmail or an arbitrary “Choose other
+Application” picker), as real a kiosk-escape route as an
+unrestricted http(s) link, just via a different mechanism –
+same reasoning as ` allowedHosts ` above, but these schemes
+need blocking unconditionally rather than allow-listed, since
+there’s no legitimate reason a kiosk would ever want to hand
+off to a native app at all\.
+
+This is a *stronger* protection than nav-guard\.js’s own click-
+time scheme check (which already treats any non-http(s)/non-
+javascript: scheme as disallowed) – that only catches an
+actual link CLICK, same limitation ` allowedHosts `’ own
+redirect check exists to cover for http(s)\. This instead
+configures Firefox’s Handlers policy directly, at the layer
+that resolves ANY navigation to one of these schemes (a
+click, a script-driven ` location.href ` change, a redirect –
+it doesn’t matter how it was reached), to have no default
+handler and never ask\.
+
+` [ ] ` here (the option’s own declared default) is NOT what
+actually ships – this module’s own ` config ` separately
+contributes a comprehensive built-in list covering every
+commonly-encountered app-handoff scheme, which ordinary
+NixOS list-option merging unions with whatever you add here
+(two plain list definitions for the same option, from two
+different modules, concatenate rather than one replacing the
+other – confirmed via an isolated evalModules test, not
+assumed)\. Add your own entries for anything a specific site
+links to that isn’t already covered; use ` allowedSchemes `
+below to remove one of the built-in ones instead (plain list
+subtraction can’t express “minus this one item” the way
+addition can)\.
+
+Blocking every scheme by DEFAULT the way ` allowedHosts `
+allow-LISTS hosts isn’t possible here: Firefox’s Handlers
+policy has no wildcard/catch-all entry, only explicitly named
+schemes, and there’s no way to enumerate every URI scheme
+that might ever exist\. The built-in list is deliberately
+broad to get as close to that as practically possible, but
+it’s a known-schemes list, not a true default-deny\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "webcal"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
 ## services\.kiosk-mode\.navigation\.buttons
 
 
