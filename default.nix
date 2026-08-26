@@ -654,6 +654,14 @@ in
                       ffmpeg `-vf` filter graph applied to the real
                       camera's feed for `screenRotation = "${rotation}"`
                       before writing it to /dev/video-follow-rotation.
+                      ",format=yuv420p" is appended automatically after
+                      this value -- an MJPEG source decodes to a pixel
+                      format (yuvj420p/yuvj422p) with no direct V4L2
+                      fourcc equivalent, so writing straight to the v4l2
+                      muxer fails outright without forcing a real
+                      V4L2-mappable format first (confirmed live: ffmpeg
+                      error "Unknown V4L2 pixel format equivalent for
+                      yuvj422p") -- no need to add it yourself.
                       Automatically selected by that option's current
                       value, same convention as touch.calibrationMatrix
                       above. Defaults to "null" (ffmpeg's literal no-op
@@ -1049,8 +1057,17 @@ in
               ++ [
                 "-i"
                 "/dev/video/kiosk-camera-real"
+                # ",format=yuv420p" is load-bearing, not cosmetic: an
+                # MJPEG source decodes to a JPEG-range pixel format
+                # (yuvj420p/yuvj422p) that has no direct V4L2 fourcc
+                # equivalent, so writing straight to the v4l2 muxer
+                # fails outright ("Unknown V4L2 pixel format equivalent
+                # for yuvj422p" / "Could not write header (incorrect
+                # codec parameters?)", confirmed live). Forcing a real
+                # V4L2-mappable format after the rotation filter fixes
+                # it regardless of what the decoder produces natively.
                 "-vf"
-                cfg.camera.rotationFilter.${cfg.screenRotation}
+                "${cfg.camera.rotationFilter.${cfg.screenRotation}},format=yuv420p"
                 "-f"
                 "v4l2"
                 "/dev/video-follow-rotation"

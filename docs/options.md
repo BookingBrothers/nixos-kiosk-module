@@ -246,6 +246,14 @@ submodule
 ffmpeg ` -vf ` filter graph applied to the real
 camera’s feed for ` screenRotation = "inverted" `
 before writing it to /dev/video-follow-rotation\.
+“,format=yuv420p” is appended automatically after
+this value – an MJPEG source decodes to a pixel
+format (yuvj420p/yuvj422p) with no direct V4L2
+fourcc equivalent, so writing straight to the v4l2
+muxer fails outright without forcing a real
+V4L2-mappable format first (confirmed live: ffmpeg
+error “Unknown V4L2 pixel format equivalent for
+yuvj422p”) – no need to add it yourself\.
 Automatically selected by that option’s current
 value, same convention as touch\.calibrationMatrix
 above\. Defaults to “null” (ffmpeg’s literal no-op
@@ -295,6 +303,14 @@ string
 ffmpeg ` -vf ` filter graph applied to the real
 camera’s feed for ` screenRotation = "left" `
 before writing it to /dev/video-follow-rotation\.
+“,format=yuv420p” is appended automatically after
+this value – an MJPEG source decodes to a pixel
+format (yuvj420p/yuvj422p) with no direct V4L2
+fourcc equivalent, so writing straight to the v4l2
+muxer fails outright without forcing a real
+V4L2-mappable format first (confirmed live: ffmpeg
+error “Unknown V4L2 pixel format equivalent for
+yuvj422p”) – no need to add it yourself\.
 Automatically selected by that option’s current
 value, same convention as touch\.calibrationMatrix
 above\. Defaults to “null” (ffmpeg’s literal no-op
@@ -344,6 +360,14 @@ string
 ffmpeg ` -vf ` filter graph applied to the real
 camera’s feed for ` screenRotation = "normal" `
 before writing it to /dev/video-follow-rotation\.
+“,format=yuv420p” is appended automatically after
+this value – an MJPEG source decodes to a pixel
+format (yuvj420p/yuvj422p) with no direct V4L2
+fourcc equivalent, so writing straight to the v4l2
+muxer fails outright without forcing a real
+V4L2-mappable format first (confirmed live: ffmpeg
+error “Unknown V4L2 pixel format equivalent for
+yuvj422p”) – no need to add it yourself\.
 Automatically selected by that option’s current
 value, same convention as touch\.calibrationMatrix
 above\. Defaults to “null” (ffmpeg’s literal no-op
@@ -393,6 +417,14 @@ string
 ffmpeg ` -vf ` filter graph applied to the real
 camera’s feed for ` screenRotation = "right" `
 before writing it to /dev/video-follow-rotation\.
+“,format=yuv420p” is appended automatically after
+this value – an MJPEG source decodes to a pixel
+format (yuvj420p/yuvj422p) with no direct V4L2
+fourcc equivalent, so writing straight to the v4l2
+muxer fails outright without forcing a real
+V4L2-mappable format first (confirmed live: ffmpeg
+error “Unknown V4L2 pixel format equivalent for
+yuvj422p”) – no need to add it yourself\.
 Automatically selected by that option’s current
 value, same convention as touch\.calibrationMatrix
 above\. Defaults to “null” (ffmpeg’s literal no-op
