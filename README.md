@@ -54,31 +54,37 @@ for external NixOS modules) and import it directly:
 ## Options
 
 All options live under `services.kiosk-mode`. The only one you must set is
-`url`; everything else has a sensible default. Run
-`nix eval .#nixosConfigurations.<name>.options.services.kiosk-mode` (or just
-read `default.nix` -- it's one file) for the full, current list with
-descriptions; the shape is:
+`url`; everything else has a sensible default (`extensions` ships three
+built-in entries -- see [Extensions](#extensions) below).
 
-| Option | Type | Default | What it's for |
-|---|---|---|---|
-| `enable` | bool | `false` | Turn the whole thing on. |
-| `user` | string | `"kiosk"` | Local user cage/Firefox run as. Created by this module. |
-| `url` | string | *(required)* | The URL to show, and what the kiosk resets back to. |
-| `mode` | `"custom"` \| `"builtin"` | `"custom"` | Which Firefox kiosk mechanism to use -- see the option's own doc comment for the tradeoff. |
-| `screenRotation` | `"normal"` \| `"left"` \| `"right"` \| `"inverted"` | `"normal"` | Output rotation, applied via `wlr-randr`. |
-| `devPixelsPerPx` | string | `"1"` | `layout.css.devPixelsPerPx`, for bigger touch targets. |
-| `idleTimeoutMinutes` | int | `0` | Minutes of no touch before auto-resetting back to `url`. Requires `touch`. |
-| `touch` | submodule or `null` | `null` | Touchscreen calibration (`vendorId`, `productId`, `calibrationMatrix`) and a stable `/dev/input/kiosk-touch` symlink. |
-| `navigation.onScreenKeyboard.enable` | bool | `false` | Force-install a touch on-screen keyboard extension. |
-| `navigation.backButton.enable` | bool | `false` | Floating back button. |
-| `navigation.homeButton.enable` | bool | `false` | Floating home button (→ `url`). |
-| `navigation.allowedHosts` | list of string or `null` | `null` | Block link clicks to any hostname not in this list (or a subdomain of one). |
-| `audio.enable` | bool | `false` | PipeWire audio for the kiosk session. |
-| `allowVtSwitch` | bool | `false` | Allow Ctrl+Alt+Fn VT switching (off by default -- read the option doc before turning this on for a public-facing kiosk). |
-| `extraGroups` | list of string | `[ ]` | Extra groups for the kiosk user (e.g. `"video"` for a USB webcam). |
-| `extensions.uBlockOrigin.enable` | bool | `true` | Force-install uBlock Origin. |
-| `extensions.consentOMatic.enable` | bool | `true` | Force-install Consent-O-Matic (auto-answers GDPR cookie banners). |
-| `extensions.autoscrollShorts.enable` | bool | `false` | Force-install an extension that auto-advances YouTube Shorts. |
+**Full reference: [`docs/options.md`](docs/options.md)** -- generated from
+the doc comments in `default.nix`, the same convention as
+[nixpkgs-lib-extensions' `docs/lib.md`](https://github.com/dvaerum/nixpkgs-lib-extensions/blob/main/docs/lib.md).
+Do not edit it by hand; after changing an option's type/default/description,
+run `nix run .#gen-docs` and commit the result -- `nix flake check`
+(`checks.docs-up-to-date`, wired into CI) fails if you forget.
+
+### Extensions
+
+`services.kiosk-mode.extensions` is a real, user-extensible API (an
+`attrsOf submodule`, the same shape nixpkgs uses for e.g.
+`systemd.services.<name>`) -- `uBlockOrigin`/`consentOMatic`/
+`autoscrollShorts` are its own built-in entries, not special-cased code, so
+add your own the exact same way:
+
+```nix
+services.kiosk-mode.extensions.myAdBlocker.id = "...@example.com";
+```
+
+and turn a built-in one off the same way any entry overrides another:
+
+```nix
+services.kiosk-mode.extensions.uBlockOrigin.enable = false;
+```
+
+See `docs/options.md` (`services.kiosk-mode.extensions.<name>.*`) for every
+field a single entry accepts (`installationMode`, `installUrl`, `xpi`,
+`privateBrowsing`, `storageSyncSeed`, `settings`).
 
 ## Known limitations
 
@@ -100,7 +106,9 @@ descriptions; the shape is:
 
 ```
 default.nix                    the module (options + config)
-flake.nix                      thin flake wrapper around default.nix
+flake.nix                      thin flake wrapper around default.nix, plus docs generation
 scripts/                       shell scripts run by the module's systemd units
 kiosk-keyboard-extension/      the force-installed on-screen-keyboard/nav-lock extension
+docs/options.md                generated option reference -- `nix run .#gen-docs` to refresh
+.github/workflows/checks.yml   runs `nix flake check` (incl. docs-up-to-date) on push/PR
 ```
