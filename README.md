@@ -89,9 +89,15 @@ field a single entry accepts (`installationMode`, `installUrl`, `xpi`,
 
 - Neither `mode` value blocks Ctrl+L/T/N/S/U from reaching Firefox's own
   keybindings -- a real, open gap, not yet fixed.
-- `touch.calibrationMatrix` and `devPixelsPerPx` are physically/visually
-  tuned per device and per site; this module deliberately doesn't try to
-  derive them, it just takes the already-resolved values.
+- `touch.calibrationMatrix`, `devPixelsPerPx`, and `camera.rotationFilter`
+  are physically/visually tuned per device and per site; this module
+  deliberately doesn't try to derive them, it just takes the already-
+  resolved values.
+- `camera` relays the real camera into a second, rotation-corrected
+  device (`/dev/video-follow-rotation`) rather than replacing the real
+  one -- existing page content/scripts that already open the camera
+  directly are unaffected, and have to be pointed at the new path
+  explicitly to get the rotated feed.
 - Extension IDs/behavior for the three built-in `extensions` entries
   (`uBlockOrigin`, `consentOMatic`, `autoscrollShorts`) were verified
   against real, currently-published extensions at the time this module

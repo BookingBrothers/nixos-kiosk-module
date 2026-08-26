@@ -581,6 +581,110 @@ in
       );
     };
 
+    camera = lib.mkOption {
+      default = null;
+      description = ''
+        Declares a built-in/attached camera and sets up a rotation-
+        corrected virtual device for it, tracking `screenRotation`, at
+        the stable path /dev/video-follow-rotation. null (the default)
+        means no camera handling at all.
+
+        Same reasoning as `touch` above: a camera mounted in a fixed
+        physical orientation relative to the chassis has no idea the
+        *display* just got told to rotate, and this isn't something a
+        web page or browser setting can fix on its own.
+
+        Implemented via v4l2loopback: a relay service reads from the
+        real camera (found via `vendorId`/`productId`, since a camera
+        with no persistent USB serial can't get a stable /dev/v4l/by-id
+        symlink from udev's own built-in rules) and continuously writes
+        frames into a virtual v4l2loopback device -- filtered through
+        `rotationFilter.<screenRotation>` -- exposed at
+        /dev/video-follow-rotation regardless of whatever raw
+        /dev/videoN index either device ends up with. This module
+        doesn't touch or replace the real camera's own device node
+        (/dev/video0 etc. keep working exactly as before) -- anything
+        that wants the rotated feed has to open
+        /dev/video-follow-rotation explicitly instead.
+      '';
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            vendorId = lib.mkOption {
+              type = lib.types.str;
+              example = "058f";
+              description = ''
+                Matched against ATTRS{idVendor} (services.udev.extraRules),
+                same convention as touch.vendorId above -- identifies the
+                real camera so the relay keeps reading from it regardless
+                of which /dev/videoN index the kernel happens to assign.
+              '';
+            };
+            productId = lib.mkOption {
+              type = lib.types.str;
+              example = "5608";
+              description = "Matched against ATTRS{idProduct} (services.udev.extraRules).";
+            };
+            inputFormat = lib.mkOption {
+              type = lib.types.str;
+              default = "mjpeg";
+              description = "ffmpeg's v4l2 demuxer -input_format when reading the real camera.";
+            };
+            videoSize = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "1280x720";
+              description = "ffmpeg's -video_size when reading the real camera. null lets ffmpeg negotiate whatever mode the camera defaults to.";
+            };
+            framerate = lib.mkOption {
+              type = lib.types.nullOr lib.types.ints.unsigned;
+              default = null;
+              example = 15;
+              description = "ffmpeg's -framerate when reading the real camera. null lets ffmpeg negotiate the camera's own default.";
+            };
+            rotationFilter = lib.mkOption {
+              type = lib.types.submodule {
+                options = lib.genAttrs [ "normal" "left" "right" "inverted" ] (
+                  rotation:
+                  lib.mkOption {
+                    type = lib.types.str;
+                    default = "null"; # ffmpeg's own no-op filter -- identity, no adjustment
+                    example = "transpose=1";
+                    description = ''
+                      ffmpeg `-vf` filter graph applied to the real
+                      camera's feed for `screenRotation = "${rotation}"`
+                      before writing it to /dev/video-follow-rotation.
+                      Automatically selected by that option's current
+                      value, same convention as touch.calibrationMatrix
+                      above. Defaults to "null" (ffmpeg's literal no-op
+                      filter, i.e. no adjustment) for every rotation --
+                      only actually correct for "normal"; a rotating
+                      host needs to work out the right value for the
+                      rotations it uses (ffmpeg's `transpose` filter: 1
+                      = 90deg clockwise, 2 = 90deg counter-clockwise, or
+                      chain two of them for 180 -- verify against a real
+                      screenshot/photo the same way as touch calibration,
+                      not by assuming a direction, since
+                      touch.calibrationMatrix's own description above
+                      records a real case of the "obvious" CW/CCW
+                      pairing turning out backwards for one axis on real
+                      hardware).
+                    '';
+                  }
+                );
+              };
+              default = { };
+              description = ''
+                Per-rotation ffmpeg filter strings -- see each
+                rotation's own field description. The one actually
+                applied is picked automatically from `screenRotation`.
+              '';
+            };
+          };
+        }
+      );
+    };
+
     navigation = {
       onScreenKeyboard.enable = lib.mkEnableOption ''
         a touch on-screen keyboard, force-installed as a browser extension
@@ -851,10 +955,111 @@ in
     # unaffected.
     systemd.services."getty@tty1".enable = false;
 
-    services.udev.extraRules = lib.mkIf (cfg.touch != null) ''
-      SUBSYSTEM=="input", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", ENV{LIBINPUT_CALIBRATION_MATRIX}="${cfg.touch.calibrationMatrix.${cfg.screenRotation}}"
-      SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", SYMLINK+="input/kiosk-touch"
+    services.udev.extraRules = lib.concatStringsSep "\n" (
+      lib.optional (cfg.touch != null) ''
+        SUBSYSTEM=="input", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", ENV{LIBINPUT_CALIBRATION_MATRIX}="${cfg.touch.calibrationMatrix.${cfg.screenRotation}}"
+        SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", SYMLINK+="input/kiosk-touch"
+      ''
+      ++ lib.optional (cfg.camera != null) ''
+        # The real camera: matched by vendor/product ID (like touch above)
+        # rather than relying on udev's own stock /dev/v4l/by-id rules,
+        # since those need a USB serial number to generate a stable
+        # symlink and not every camera reports one. ID_V4L_CAPABILITIES
+        # excludes a UVC camera's separate metadata-only device node
+        # (present alongside the actual capture node on newer UVC
+        # cameras, confirmed live: it reports ID_V4L_CAPABILITIES=":"
+        # with no "capture", vs. ":capture:" on the real one) -- without
+        # this, the rule would also match and symlink the metadata node,
+        # racing with the real one for the same symlink target.
+        SUBSYSTEM=="video4linux", ATTRS{idVendor}=="${cfg.camera.vendorId}", ATTRS{idProduct}=="${cfg.camera.productId}", ENV{ID_V4L_CAPABILITIES}=="*:capture:*", SYMLINK+="video/kiosk-camera-real"
+        # The virtual v4l2loopback device: matched by its own card_label
+        # (set in boot.extraModprobeConfig below and surfaced by udev as
+        # ID_V4L_PRODUCT), not vendor/product ID -- it's not a real USB
+        # device, so those don't apply.
+        SUBSYSTEM=="video4linux", ENV{ID_V4L_PRODUCT}=="kiosk-camera-follow-rotation", SYMLINK+="video-follow-rotation"
+      ''
+    );
+
+    boot.kernelModules = lib.mkIf (cfg.camera != null) [ "v4l2loopback" ];
+    boot.extraModulePackages = lib.mkIf (cfg.camera != null) [ config.boot.kernelPackages.v4l2loopback ];
+    boot.extraModprobeConfig = lib.mkIf (cfg.camera != null) ''
+      # exclusive_caps=1: without it, a v4l2loopback device advertises
+      # BOTH capture and output capabilities on the same node, which is
+      # the historically-correct V4L2 model but not what most consumer
+      # apps (browsers among them) expect from a device they enumerate
+      # for getUserMedia()/camera use -- this is v4l2loopback's own
+      # documented fix for that specific compatibility gap, not a value
+      # picked at random. No explicit video_nr: letting the kernel
+      # assign one dynamically avoids fighting the real camera (or any
+      # other future video4linux device) for a specific number, since
+      # this module identifies the loopback device by its card_label via
+      # udev (see services.udev.extraRules above) rather than by index.
+      options v4l2loopback card_label="kiosk-camera-follow-rotation" exclusive_caps=1
     '';
+
+    # Relay service: reads the real camera (via its own stable
+    # vendor/product-matched symlink, not a raw /dev/videoN index that
+    # could shift once v4l2loopback claims a device number too) and
+    # writes rotation-corrected frames into the v4l2loopback device,
+    # which appears at /dev/video-follow-rotation via the udev rule
+    # above. Restart=always + StartLimitIntervalSec=0 for the same
+    # reason as kiosk-idle-reset.service elsewhere in this module: a
+    # camera that's briefly unplugged/re-enumerated shouldn't be able to
+    # trip systemd's default restart-rate limit and give up permanently.
+    systemd.services.kiosk-camera-follow-rotation = lib.mkIf (cfg.camera != null) {
+      description = "Relay the real camera into /dev/video-follow-rotation, rotated to match screenRotation";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "systemd-udev-settle.service" ];
+      wants = [ "systemd-udev-settle.service" ];
+      unitConfig.StartLimitIntervalSec = 0;
+      serviceConfig = {
+        Restart = "always";
+        RestartSec = "2s";
+        ExecStart = pkgs.writeShellScript "kiosk-camera-follow-rotation" ''
+          set -eu
+          # Both symlinks are created by udev rules triggered off device
+          # events this service's own unit ordering (after
+          # systemd-udev-settle.service) should already guarantee have
+          # settled -- this loop is just defense against the specific
+          # case of the real camera being plugged in/re-enumerating
+          # after that point, not the expected common case.
+          for _ in $(seq 1 30); do
+            [ -e /dev/video/kiosk-camera-real ] && [ -e /dev/video-follow-rotation ] && break
+            sleep 1
+          done
+          exec ${lib.getExe pkgs.ffmpeg} ${
+            lib.escapeShellArgs (
+              [
+                "-hide_banner"
+                "-loglevel"
+                "error"
+                "-f"
+                "v4l2"
+                "-input_format"
+                cfg.camera.inputFormat
+              ]
+              ++ lib.optionals (cfg.camera.videoSize != null) [
+                "-video_size"
+                cfg.camera.videoSize
+              ]
+              ++ lib.optionals (cfg.camera.framerate != null) [
+                "-framerate"
+                (toString cfg.camera.framerate)
+              ]
+              ++ [
+                "-i"
+                "/dev/video/kiosk-camera-real"
+                "-vf"
+                cfg.camera.rotationFilter.${cfg.screenRotation}
+                "-f"
+                "v4l2"
+                "/dev/video-follow-rotation"
+              ]
+            )
+          }
+        '';
+      };
+    };
 
     services.pulseaudio.enable = lib.mkIf cfg.audio.enable false;
     security.rtkit.enable = lib.mkIf cfg.audio.enable true;

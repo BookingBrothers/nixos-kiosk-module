@@ -88,6 +88,412 @@ true
 
 
 
+## services\.kiosk-mode\.camera
+
+
+
+Declares a built-in/attached camera and sets up a rotation-
+corrected virtual device for it, tracking ` screenRotation `, at
+the stable path /dev/video-follow-rotation\. null (the default)
+means no camera handling at all\.
+
+Same reasoning as ` touch ` above: a camera mounted in a fixed
+physical orientation relative to the chassis has no idea the
+*display* just got told to rotate, and this isn’t something a
+web page or browser setting can fix on its own\.
+
+Implemented via v4l2loopback: a relay service reads from the
+real camera (found via ` vendorId `/` productId `, since a camera
+with no persistent USB serial can’t get a stable /dev/v4l/by-id
+symlink from udev’s own built-in rules) and continuously writes
+frames into a virtual v4l2loopback device – filtered through
+` rotationFilter.<screenRotation> ` – exposed at
+/dev/video-follow-rotation regardless of whatever raw
+/dev/videoN index either device ends up with\. This module
+doesn’t touch or replace the real camera’s own device node
+(/dev/video0 etc\. keep working exactly as before) – anything
+that wants the rotated feed has to open
+/dev/video-follow-rotation explicitly instead\.
+
+
+
+*Type:*
+null or (submodule)
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.framerate
+
+
+
+ffmpeg’s -framerate when reading the real camera\. null lets ffmpeg negotiate the camera’s own default\.
+
+
+
+*Type:*
+null or (unsigned integer, meaning >=0)
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+*Example:*
+
+```nix
+15
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.inputFormat
+
+
+
+ffmpeg’s v4l2 demuxer -input_format when reading the real camera\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"mjpeg"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.productId
+
+
+
+Matched against ATTRS{idProduct} (services\.udev\.extraRules)\.
+
+
+
+*Type:*
+string
+
+
+
+*Example:*
+
+```nix
+"5608"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.rotationFilter
+
+
+
+Per-rotation ffmpeg filter strings – see each
+rotation’s own field description\. The one actually
+applied is picked automatically from ` screenRotation `\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.rotationFilter\.inverted
+
+
+
+ffmpeg ` -vf ` filter graph applied to the real
+camera’s feed for ` screenRotation = "inverted" `
+before writing it to /dev/video-follow-rotation\.
+Automatically selected by that option’s current
+value, same convention as touch\.calibrationMatrix
+above\. Defaults to “null” (ffmpeg’s literal no-op
+filter, i\.e\. no adjustment) for every rotation –
+only actually correct for “normal”; a rotating
+host needs to work out the right value for the
+rotations it uses (ffmpeg’s ` transpose ` filter: 1
+= 90deg clockwise, 2 = 90deg counter-clockwise, or
+chain two of them for 180 – verify against a real
+screenshot/photo the same way as touch calibration,
+not by assuming a direction, since
+touch\.calibrationMatrix’s own description above
+records a real case of the “obvious” CW/CCW
+pairing turning out backwards for one axis on real
+hardware)\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"null"
+```
+
+
+
+*Example:*
+
+```nix
+"transpose=1"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.rotationFilter\.left
+
+
+
+ffmpeg ` -vf ` filter graph applied to the real
+camera’s feed for ` screenRotation = "left" `
+before writing it to /dev/video-follow-rotation\.
+Automatically selected by that option’s current
+value, same convention as touch\.calibrationMatrix
+above\. Defaults to “null” (ffmpeg’s literal no-op
+filter, i\.e\. no adjustment) for every rotation –
+only actually correct for “normal”; a rotating
+host needs to work out the right value for the
+rotations it uses (ffmpeg’s ` transpose ` filter: 1
+= 90deg clockwise, 2 = 90deg counter-clockwise, or
+chain two of them for 180 – verify against a real
+screenshot/photo the same way as touch calibration,
+not by assuming a direction, since
+touch\.calibrationMatrix’s own description above
+records a real case of the “obvious” CW/CCW
+pairing turning out backwards for one axis on real
+hardware)\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"null"
+```
+
+
+
+*Example:*
+
+```nix
+"transpose=1"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.rotationFilter\.normal
+
+
+
+ffmpeg ` -vf ` filter graph applied to the real
+camera’s feed for ` screenRotation = "normal" `
+before writing it to /dev/video-follow-rotation\.
+Automatically selected by that option’s current
+value, same convention as touch\.calibrationMatrix
+above\. Defaults to “null” (ffmpeg’s literal no-op
+filter, i\.e\. no adjustment) for every rotation –
+only actually correct for “normal”; a rotating
+host needs to work out the right value for the
+rotations it uses (ffmpeg’s ` transpose ` filter: 1
+= 90deg clockwise, 2 = 90deg counter-clockwise, or
+chain two of them for 180 – verify against a real
+screenshot/photo the same way as touch calibration,
+not by assuming a direction, since
+touch\.calibrationMatrix’s own description above
+records a real case of the “obvious” CW/CCW
+pairing turning out backwards for one axis on real
+hardware)\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"null"
+```
+
+
+
+*Example:*
+
+```nix
+"transpose=1"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.rotationFilter\.right
+
+
+
+ffmpeg ` -vf ` filter graph applied to the real
+camera’s feed for ` screenRotation = "right" `
+before writing it to /dev/video-follow-rotation\.
+Automatically selected by that option’s current
+value, same convention as touch\.calibrationMatrix
+above\. Defaults to “null” (ffmpeg’s literal no-op
+filter, i\.e\. no adjustment) for every rotation –
+only actually correct for “normal”; a rotating
+host needs to work out the right value for the
+rotations it uses (ffmpeg’s ` transpose ` filter: 1
+= 90deg clockwise, 2 = 90deg counter-clockwise, or
+chain two of them for 180 – verify against a real
+screenshot/photo the same way as touch calibration,
+not by assuming a direction, since
+touch\.calibrationMatrix’s own description above
+records a real case of the “obvious” CW/CCW
+pairing turning out backwards for one axis on real
+hardware)\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"null"
+```
+
+
+
+*Example:*
+
+```nix
+"transpose=1"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.vendorId
+
+
+
+Matched against ATTRS{idVendor} (services\.udev\.extraRules),
+same convention as touch\.vendorId above – identifies the
+real camera so the relay keeps reading from it regardless
+of which /dev/videoN index the kernel happens to assign\.
+
+
+
+*Type:*
+string
+
+
+
+*Example:*
+
+```nix
+"058f"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.camera\.videoSize
+
+
+
+ffmpeg’s -video_size when reading the real camera\. null lets ffmpeg negotiate whatever mode the camera defaults to\.
+
+
+
+*Type:*
+null or string
+
+
+
+*Default:*
+
+```nix
+null
+```
+
+
+
+*Example:*
+
+```nix
+"1280x720"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
 ## services\.kiosk-mode\.devPixelsPerPx
 
 
