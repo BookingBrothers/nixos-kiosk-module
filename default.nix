@@ -30,6 +30,39 @@ let
   enableNavExtension =
     cfg.navigation.onScreenKeyboard.enable || enabledNavButtons != [ ] || cfg.navigation.allowedHosts != null;
 
+  # Hostname out of an http(s) URL, or null for anything else (a bare
+  # host, a non-http(s) scheme, "back") -- deliberately narrow rather
+  # than a general-purpose URL parser, since every caller here already
+  # knows its input is either a real navigation target or the literal
+  # "back" sentinel.
+  hostOf =
+    url:
+    let
+      m = builtins.match "https?://([^/:]+).*" url;
+    in
+    if m != null then builtins.head m else null;
+
+  # Every host this module's OWN config already navigates the kiosk to
+  # on purpose (the home url, every enabled nav button's target) --
+  # auto-unioned into allowedHosts below so an operator adding a nav
+  # button doesn't *also* have to separately remember to list its host,
+  # the same gap that made the 😁 button above briefly get redirected
+  # straight back home the instant allowedHosts' own redirect-on-
+  # disallowed-host check shipped (a host missing from the list is
+  # indistinguishable from an actual escape attempt -- confirmed live).
+  autoAllowedHosts = lib.filter (h: h != null) (
+    map hostOf ([ cfg.url ] ++ map (b: b.action) (lib.filter (b: b.action != "back") enabledNavButtons))
+  );
+
+  # null stays null (feature off entirely) -- autoAllowedHosts has
+  # nothing to union into if the operator hasn't opted into host
+  # restriction at all.
+  effectiveAllowedHosts =
+    if cfg.navigation.allowedHosts == null then
+      null
+    else
+      lib.unique (cfg.navigation.allowedHosts ++ autoAllowedHosts);
+
   # The one generated file in the on-screen-keyboard/nav extension: pure
   # data assignments (no control flow, nothing script-like) handing this
   # host's resolved config to the otherwise fully static nav-buttons.js/
@@ -47,8 +80,11 @@ let
         }) enabledNavButtons
       )
     };
+    // effectiveAllowedHosts, not the raw allowedHosts option -- see that
+    // binding's own comment for why (auto-unions every host this
+    // module's own config already navigates to on purpose).
     window.__KIOSK_ALLOWED_HOSTS__ = ${
-      if cfg.navigation.allowedHosts != null then builtins.toJSON cfg.navigation.allowedHosts else "null"
+      if effectiveAllowedHosts != null then builtins.toJSON effectiveAllowedHosts else "null"
     };
     // Redirect target for nav-guard.js's on-load check (already-landed-
     // on-a-disallowed-host, as opposed to the click-time check
@@ -795,17 +831,29 @@ in
           host by any OTHER means (a script-driven navigation, a form
           submit, a meta-refresh, or a server-side redirect from an
           otherwise-allowed page -- none of which a click listener alone
-          catches). `url`'s own host doesn't need to be listed here for
-          this second check specifically (it's always treated as
-          allowed, so the redirect target can never fail its own check
-          and loop) -- it still needs to be listed for ordinary links TO
-          it to work, same as any other host. Doesn't touch legitimately
-          embedded third-party content (iframes) -- only intercepts a
-          visitor actually clicking through to leave the site, or the
-          top-level document itself ending up elsewhere. A list rather
-          than one hostname since a site can legitimately span more than
-          one domain (e.g. a short-link domain alongside the main one,
-          or a companion platform it links out to).
+          catches). Doesn't touch legitimately embedded third-party
+          content (iframes) -- only intercepts a visitor actually
+          clicking through to leave the site, or the top-level document
+          itself ending up elsewhere. A list rather than one hostname
+          since a site can legitimately span more than one domain (e.g.
+          a short-link domain alongside the main one, or a companion
+          platform it links out to).
+
+          You don't need to list `url`'s own host, or any enabled
+          `navigation.buttons.<name>.action` URL's host, here yourself
+          -- every host this module's own config already navigates the
+          kiosk to on purpose is unioned in automatically, for both
+          checks above. Forgetting one used to mean either a real link
+          silently not working (the click-block check) or, once the
+          redirect check shipped, a configured nav button instantly
+          bouncing back to `url` the moment it was tapped -- a host
+          missing from this list looks identical to an actual escape
+          attempt either way, so this module tracks its own known-good
+          hosts rather than asking you to keep a second copy in sync.
+          This list is for everything else the SITE ITSELF might
+          legitimately link to that isn't already implied by your own
+          configuration (e.g. a companion domain the site embeds or
+          links out to).
         '';
       };
     };
