@@ -740,6 +740,1144 @@ true
 
 
 
+## services\.kiosk-mode\.permissions\.autoplay
+
+
+
+Firefox’s Autoplay permission (audio+video autoplay-with-sound)\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.autoplay\.enable
+
+
+
+Whether this module manages Firefox’s Autoplay permission at all\. When false, Firefox’s own default is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.autoplay\.allow
+
+
+
+Origins allowed to autoplay audio+video\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.autoplay\.block
+
+
+
+Origins explicitly denied autoplay, regardless of ` default `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.autoplay\.default
+
+
+
+Autoplay behavior for every origin not covered by ` allow `/` block ` – defaults to blocking outright (silent, no prompt: Firefox’s autoplay policy was never prompt-based to begin with), same reasoning as the other permissions’ ` blockNewRequests ` default\.
+
+
+
+*Type:*
+one of “allow-audio-video”, “block-audio”, “block-audio-video”
+
+
+
+*Default:*
+
+```nix
+"block-audio-video"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.autoplay\.locked
+
+
+
+Prevent changing autoplay settings via about:preferences\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.camera
+
+
+
+Firefox’s Camera permission prompt\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.camera\.enable
+
+
+
+Whether this module manages Firefox’s Camera permission prompt at all\. When false, Firefox’s own default (per-site prompt) behavior is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.camera\.allow
+
+
+
+Origins (scheme+host+port, not bare hostnames) granted Camera automatically, no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.camera\.block
+
+
+
+Origins explicitly denied Camera, no prompt – for carving out an exception when ` blockNewRequests ` is false\. Redundant with (and overridden by) ` blockNewRequests = true `, which already denies every origin not in ` allow `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.org"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.camera\.blockNewRequests
+
+
+
+Deny Camera outright (no prompt at all) for every origin not listed in ` allow `\. This is what makes ` allow ` an allowlist rather than just a way to skip the prompt for one more site – turn it off if unlisted origins should still get Firefox’s normal prompt\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.camera\.locked
+
+
+
+Prevent changing Camera settings via about:preferences\. Defaults on for the same reason DisableDeveloperTools is unconditional – one less kiosk-escape/reconfiguration surface, even though this mode’s hidden chrome makes about:preferences hard to reach in the first place\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.location
+
+
+
+Firefox’s Location permission prompt\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.location\.enable
+
+
+
+Whether this module manages Firefox’s Location permission prompt at all\. When false, Firefox’s own default (per-site prompt) behavior is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.location\.allow
+
+
+
+Origins (scheme+host+port, not bare hostnames) granted Location automatically, no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.location\.block
+
+
+
+Origins explicitly denied Location, no prompt – for carving out an exception when ` blockNewRequests ` is false\. Redundant with (and overridden by) ` blockNewRequests = true `, which already denies every origin not in ` allow `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.org"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.location\.blockNewRequests
+
+
+
+Deny Location outright (no prompt at all) for every origin not listed in ` allow `\. This is what makes ` allow ` an allowlist rather than just a way to skip the prompt for one more site – turn it off if unlisted origins should still get Firefox’s normal prompt\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.location\.locked
+
+
+
+Prevent changing Location settings via about:preferences\. Defaults on for the same reason DisableDeveloperTools is unconditional – one less kiosk-escape/reconfiguration surface, even though this mode’s hidden chrome makes about:preferences hard to reach in the first place\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.microphone
+
+
+
+Firefox’s Microphone permission prompt\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.microphone\.enable
+
+
+
+Whether this module manages Firefox’s Microphone permission prompt at all\. When false, Firefox’s own default (per-site prompt) behavior is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.microphone\.allow
+
+
+
+Origins (scheme+host+port, not bare hostnames) granted Microphone automatically, no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.microphone\.block
+
+
+
+Origins explicitly denied Microphone, no prompt – for carving out an exception when ` blockNewRequests ` is false\. Redundant with (and overridden by) ` blockNewRequests = true `, which already denies every origin not in ` allow `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.org"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.microphone\.blockNewRequests
+
+
+
+Deny Microphone outright (no prompt at all) for every origin not listed in ` allow `\. This is what makes ` allow ` an allowlist rather than just a way to skip the prompt for one more site – turn it off if unlisted origins should still get Firefox’s normal prompt\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.microphone\.locked
+
+
+
+Prevent changing Microphone settings via about:preferences\. Defaults on for the same reason DisableDeveloperTools is unconditional – one less kiosk-escape/reconfiguration surface, even though this mode’s hidden chrome makes about:preferences hard to reach in the first place\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.notifications
+
+
+
+Firefox’s Notifications permission prompt\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.notifications\.enable
+
+
+
+Whether this module manages Firefox’s Notifications permission prompt at all\. When false, Firefox’s own default (per-site prompt) behavior is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.notifications\.allow
+
+
+
+Origins (scheme+host+port, not bare hostnames) granted Notifications automatically, no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.notifications\.block
+
+
+
+Origins explicitly denied Notifications, no prompt – for carving out an exception when ` blockNewRequests ` is false\. Redundant with (and overridden by) ` blockNewRequests = true `, which already denies every origin not in ` allow `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.org"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.notifications\.blockNewRequests
+
+
+
+Deny Notifications outright (no prompt at all) for every origin not listed in ` allow `\. This is what makes ` allow ` an allowlist rather than just a way to skip the prompt for one more site – turn it off if unlisted origins should still get Firefox’s normal prompt\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.notifications\.locked
+
+
+
+Prevent changing Notifications settings via about:preferences\. Defaults on for the same reason DisableDeveloperTools is unconditional – one less kiosk-escape/reconfiguration surface, even though this mode’s hidden chrome makes about:preferences hard to reach in the first place\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.screenShare
+
+
+
+Firefox’s ScreenShare permission prompt\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.screenShare\.enable
+
+
+
+Whether this module manages Firefox’s ScreenShare permission prompt at all\. When false, Firefox’s own default (per-site prompt) behavior is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.screenShare\.allow
+
+
+
+Origins (scheme+host+port, not bare hostnames) granted ScreenShare automatically, no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.screenShare\.block
+
+
+
+Origins explicitly denied ScreenShare, no prompt – for carving out an exception when ` blockNewRequests ` is false\. Redundant with (and overridden by) ` blockNewRequests = true `, which already denies every origin not in ` allow `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.org"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.screenShare\.blockNewRequests
+
+
+
+Deny ScreenShare outright (no prompt at all) for every origin not listed in ` allow `\. This is what makes ` allow ` an allowlist rather than just a way to skip the prompt for one more site – turn it off if unlisted origins should still get Firefox’s normal prompt\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.screenShare\.locked
+
+
+
+Prevent changing ScreenShare settings via about:preferences\. Defaults on for the same reason DisableDeveloperTools is unconditional – one less kiosk-escape/reconfiguration surface, even though this mode’s hidden chrome makes about:preferences hard to reach in the first place\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.virtualReality
+
+
+
+Firefox’s VirtualReality permission prompt\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.virtualReality\.enable
+
+
+
+Whether this module manages Firefox’s VirtualReality permission prompt at all\. When false, Firefox’s own default (per-site prompt) behavior is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.virtualReality\.allow
+
+
+
+Origins (scheme+host+port, not bare hostnames) granted VirtualReality automatically, no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.virtualReality\.block
+
+
+
+Origins explicitly denied VirtualReality, no prompt – for carving out an exception when ` blockNewRequests ` is false\. Redundant with (and overridden by) ` blockNewRequests = true `, which already denies every origin not in ` allow `\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.org"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.virtualReality\.blockNewRequests
+
+
+
+Deny VirtualReality outright (no prompt at all) for every origin not listed in ` allow `\. This is what makes ` allow ` an allowlist rather than just a way to skip the prompt for one more site – turn it off if unlisted origins should still get Firefox’s normal prompt\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.virtualReality\.locked
+
+
+
+Prevent changing VirtualReality settings via about:preferences\. Defaults on for the same reason DisableDeveloperTools is unconditional – one less kiosk-escape/reconfiguration surface, even though this mode’s hidden chrome makes about:preferences hard to reach in the first place\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
 ## services\.kiosk-mode\.screenRotation
 
 

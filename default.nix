@@ -293,6 +293,139 @@ let
       };
     }
   );
+
+  # ---- Firefox site-permission prompts (camera/microphone/location/...) --
+  #
+  # Unlike `extensions`/`navigation.buttons` above, this is NOT an
+  # attrsOf-submodule -- Firefox's Permissions policy has exactly seven
+  # real sub-keys (Camera, Microphone, Location, Notifications, Autoplay,
+  # VirtualReality, ScreenShare; confirmed against Mozilla's own
+  # policy-templates docs, not guessed), a closed set nothing else can
+  # extend. An open attrsOf here would just trade "Firefox silently
+  # ignores a typo'd key" for "this module silently ignores a typo'd
+  # key" -- a fixed field per real permission type lets the option
+  # system catch `cfg.permissions.cammera` at eval time instead.
+  #
+  # Each one is off (`enable = false`) unless explicitly configured --
+  # this module has no business deciding e.g. every kiosk's Location
+  # prompt behavior on its own. Once enabled, `blockNewRequests`
+  # defaults to true: the entire point of this option is "this one site
+  # gets it silently, nobody else even sees a prompt" (a kiosk has no
+  # user standing by to click through one), so the default has to make
+  # that true without extra config, not just make it *possible*.
+  mkPermissionOption =
+    firefoxName:
+    lib.mkOption {
+      type = lib.types.submodule {
+        options = {
+          enable = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Whether this module manages Firefox's ${firefoxName} permission prompt at all. When false, Firefox's own default (per-site prompt) behavior is untouched.";
+          };
+          allow = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            example = [ "https://example.com" ];
+            description = "Origins (scheme+host+port, not bare hostnames) granted ${firefoxName} automatically, no prompt.";
+          };
+          block = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            example = [ "https://example.org" ];
+            description = "Origins explicitly denied ${firefoxName}, no prompt -- for carving out an exception when `blockNewRequests` is false. Redundant with (and overridden by) `blockNewRequests = true`, which already denies every origin not in `allow`.";
+          };
+          blockNewRequests = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = "Deny ${firefoxName} outright (no prompt at all) for every origin not listed in `allow`. This is what makes `allow` an allowlist rather than just a way to skip the prompt for one more site -- turn it off if unlisted origins should still get Firefox's normal prompt.";
+          };
+          locked = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = "Prevent changing ${firefoxName} settings via about:preferences. Defaults on for the same reason DisableDeveloperTools is unconditional -- one less kiosk-escape/reconfiguration surface, even though this mode's hidden chrome makes about:preferences hard to reach in the first place.";
+          };
+        };
+      };
+      default = { };
+      description = "Firefox's ${firefoxName} permission prompt.";
+    };
+
+  # Autoplay is shaped differently in Firefox's own policy (a global
+  # `Default` for unmatched origins instead of `BlockNewRequests`) --
+  # modeled as its own option rather than forcing it through
+  # mkPermissionOption's shape and hoping the mismatch goes unnoticed.
+  autoplayPermission = lib.mkOption {
+    type = lib.types.submodule {
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether this module manages Firefox's Autoplay permission at all. When false, Firefox's own default is untouched.";
+        };
+        allow = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          example = [ "https://example.com" ];
+          description = "Origins allowed to autoplay audio+video.";
+        };
+        block = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = "Origins explicitly denied autoplay, regardless of `default`.";
+        };
+        default = lib.mkOption {
+          type = lib.types.enum [
+            "allow-audio-video"
+            "block-audio"
+            "block-audio-video"
+          ];
+          default = "block-audio-video";
+          description = "Autoplay behavior for every origin not covered by `allow`/`block` -- defaults to blocking outright (silent, no prompt: Firefox's autoplay policy was never prompt-based to begin with), same reasoning as the other permissions' `blockNewRequests` default.";
+        };
+        locked = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = "Prevent changing autoplay settings via about:preferences.";
+        };
+      };
+    };
+    default = { };
+    description = "Firefox's Autoplay permission (audio+video autoplay-with-sound).";
+  };
+
+  # Maps this module's own field names to Firefox's real Permissions
+  # policy JSON, and drops any permission left at `enable = false`
+  # entirely -- an unconfigured permission must produce NO policy key at
+  # all, not an empty/default one, or every kiosk using this module
+  # would suddenly start silently blocking camera/location/etc. for
+  # everyone, unasked.
+  permissionPolicyFor =
+    firefoxName: p:
+    lib.optionalAttrs p.enable {
+      ${firefoxName} = {
+        Allow = p.allow;
+        Block = p.block;
+        BlockNewRequests = p.blockNewRequests;
+        Locked = p.locked;
+      };
+    };
+
+  permissionsPolicy =
+    permissionPolicyFor "Camera" cfg.permissions.camera
+    // permissionPolicyFor "Microphone" cfg.permissions.microphone
+    // permissionPolicyFor "Location" cfg.permissions.location
+    // permissionPolicyFor "Notifications" cfg.permissions.notifications
+    // permissionPolicyFor "VirtualReality" cfg.permissions.virtualReality
+    // permissionPolicyFor "ScreenShare" cfg.permissions.screenShare
+    // lib.optionalAttrs cfg.permissions.autoplay.enable {
+      Autoplay = {
+        Allow = cfg.permissions.autoplay.allow;
+        Block = cfg.permissions.autoplay.block;
+        Default = cfg.permissions.autoplay.default;
+        Locked = cfg.permissions.autoplay.locked;
+      };
+    };
 in
 {
   options.services.kiosk-mode = {
@@ -631,6 +764,16 @@ in
         description for why storage.sync is already the harder case).
       '';
     };
+
+    permissions = {
+      camera = mkPermissionOption "Camera";
+      microphone = mkPermissionOption "Microphone";
+      location = mkPermissionOption "Location";
+      notifications = mkPermissionOption "Notifications";
+      virtualReality = mkPermissionOption "VirtualReality";
+      screenShare = mkPermissionOption "ScreenShare";
+      autoplay = autoplayPermission;
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -772,6 +915,7 @@ in
           };
         })
         { ExtensionSettings = extensionSettingsFromApi; }
+        (lib.mkIf (permissionsPolicy != { }) { Permissions = permissionsPolicy; })
       ];
     };
 
