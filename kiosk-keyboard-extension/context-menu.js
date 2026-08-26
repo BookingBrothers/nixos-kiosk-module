@@ -4,8 +4,9 @@
 // to selectively keep only some of its items, it's all-or-nothing for a
 // content script (see preventDefault() below; confirmed live: even with a
 // page-text selection, the native menu still surfaces "Take Screenshot",
-// "Search Google for ...", "Ask an AI Chatbot", "View Selection Source"
-// alongside Copy, none of which can be hidden individually) -- and shows
+// a default-search-engine search item, "Ask an AI Chatbot", "View
+// Selection Source" alongside Copy, none of which can be hidden
+// individually) -- and shows
 // this file's own 3-button popup instead. Each button just calls
 // document.execCommand('cut'|'copy'|'paste'), the same underlying action
 // the native menu's own Cut/Copy/Paste items run, operating on whatever
@@ -71,9 +72,8 @@
     btn.textContent = label;
     // 14px vertical padding + ~18px line height works out to roughly a
     // 48px CSS-px tall tap target, matching content.js's on-screen
-    // keyboard keys -- see that file's own comment on why 48px (Google
-    // Material Design's touch-target minimum) rather than picking a size
-    // independently here.
+    // keyboard keys -- see that file's own comment on why 48px rather
+    // than picking a size independently here.
     btn.style.cssText =
       "padding: 14px 26px; font-size: 18px; font-family: sans-serif; color: #fff; cursor: pointer; user-select: none;";
     // Without this, tapping a button blurs the field / clears the

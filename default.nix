@@ -505,10 +505,10 @@ in
 
         uBlock Origin is on by default: worth having on any kiosk
         rendering real third-party web content. Consent-O-Matic is on by
-        default too (auto-answers GDPR cookie-consent dialogs -- built by
-        Aarhus University's CAVI): a kiosk nobody is standing at to click
-        "Accept" through a modal cookie banner needs it handled
-        automatically. "Autoscroll Shorts" (auto-advances to the next
+        default too (auto-answers GDPR cookie-consent dialogs): a kiosk
+        nobody is standing at to click "Accept" through a modal cookie
+        banner needs it handled automatically. "Autoscroll Shorts" (auto-
+        advances to the next
         YouTube Short when the current one ends) is off by default --
         unlike the other two, it's only useful on a kiosk that actually
         shows YouTube Shorts; picked over several similar extensions

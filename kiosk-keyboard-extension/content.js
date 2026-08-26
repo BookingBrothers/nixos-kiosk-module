@@ -100,14 +100,14 @@
   root.id = "kiosk-keyboard-root";
   var style = document.createElement("style");
   // Key sizing: min-height 48px / max-width 64px. 48px (CSS px, i.e. after
-  // devPixelsPerPx scaling -- see configuration.nix's own comment on that
-  // value) matches the touch-target minimum from Google's Material Design
-  // guidelines (also close to Apple HIG's 44pt and WCAG 2.1 SC 2.5.5's
-  // 44x44px) -- small enough to fit a full row on this hardware's screen,
-  // large enough for a finger tap to land reliably without hitting a
-  // neighboring key. max-width caps how wide each key gets on top of that
-  // minimum when a row has few keys (flex: 1 would otherwise stretch them
-  // to fill the row's full width).
+  // devPixelsPerPx scaling -- see this module's own `devPixelsPerPx`
+  // option) is a common touch-target-size guideline across several
+  // platforms' accessibility recommendations (also close to WCAG 2.1
+  // SC 2.5.5's 44x44px minimum) -- small enough to fit a full row on a
+  // typical kiosk screen, large enough for a finger tap to land reliably
+  // without hitting a neighboring key. max-width caps how wide each key
+  // gets on top of that minimum when a row has few keys (flex: 1 would
+  // otherwise stretch them to fill the row's full width).
   style.textContent = [
     "#kiosk-keyboard-root {",
     "  position: fixed; left: 0; right: 0; bottom: 0;",

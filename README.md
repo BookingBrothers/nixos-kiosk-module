@@ -87,12 +87,14 @@ descriptions; the shape is:
 - `touch.calibrationMatrix` and `devPixelsPerPx` are physically/visually
   tuned per device and per site; this module deliberately doesn't try to
   derive them, it just takes the already-resolved values.
-- Extension IDs/behavior (`uBlockOrigin`, `consentOMatic`, `autoscrollShorts`)
-  were verified against specific Firefox and extension versions at the time
-  this module was written (Firefox ~154, uBlock Origin, Consent-O-Matic
-  1.1.5, "Autoscroll Shorts" 1.6). Extension behavior around AMO installation
-  and storage has changed before (see the `install_url` and
-  `consentOMaticSyncSeedDb` comments in `default.nix`) and may change again.
+- Extension IDs/behavior for the three built-in `extensions` entries
+  (`uBlockOrigin`, `consentOMatic`, `autoscrollShorts`) were verified
+  against real, currently-published extensions at the time this module
+  was written, not guessed. Extension behavior around AMO installation
+  and storage has changed before (see the `installUrl` and
+  `storageSyncSeedDb` comments in `default.nix`) and may change again --
+  if a built-in entry stops working after a Firefox or extension update,
+  those comments are the place to start.
 
 ## Repository layout
 
