@@ -89,6 +89,11 @@ field a single entry accepts (`installationMode`, `installUrl`, `xpi`,
 
 - Neither `mode` value blocks Ctrl+L/T/N/S/U from reaching Firefox's own
   keybindings -- a real, open gap, not yet fixed.
+- `permissions.<type>.allow` (at least Camera/Microphone, confirmed;
+  likely all of them) does nothing while `privateBrowsing` is on (the
+  default) for a genuine getUserMedia()-based site -- confirmed via an
+  isolated local A/B repro. Set `privateBrowsing = false` if you need
+  this to actually work.
 - `navigation.blockedSchemes` is a known-schemes list (comprehensive,
   not exhaustive), not a true default-deny -- Firefox's Handlers policy
   has no wildcard/catch-all entry, only explicitly named schemes, so an

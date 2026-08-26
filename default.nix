@@ -368,7 +368,23 @@ let
             type = lib.types.listOf lib.types.str;
             default = [ ];
             example = [ "https://example.com" ];
-            description = "Origins (scheme+host+port, not bare hostnames) granted ${firefoxName} automatically, no prompt.";
+            description = ''
+              Origins (scheme+host+port, not bare hostnames) granted
+              ${firefoxName} automatically, no prompt. May require
+              `services.kiosk-mode.privateBrowsing = false` to actually
+              take effect -- confirmed via an isolated local A/B repro
+              for Camera/Microphone specifically (a genuine
+              getUserMedia()-based site got a real NotAllowedError
+              instead of silent access while private browsing was
+              forced on, which it is by default; the same origin
+              worked with it off). Not independently verified for
+              ${firefoxName}, but very likely the same: every
+              `Permissions.<Type>` entry is implemented through the
+              same underlying permission-manager mechanism, which
+              isn't honored inside a permanently-private session
+              (`blockNewRequests`, a plain global pref, is unaffected
+              either way). See `privateBrowsing`'s own description.
+            '';
           };
           block = lib.mkOption {
             type = lib.types.listOf lib.types.str;
@@ -610,8 +626,38 @@ in
 
         Neither value blocks Ctrl+L/T/N/S/U from reaching Firefox's own
         keybindings -- a known open gap in both modes, not yet fixed.
-        Permanent private browsing (browser.privatebrowsing.autostart)
-        is forced unconditionally either way, regardless of this setting.
+        `privateBrowsing` below applies either way, regardless of this
+        setting.
+      '';
+    };
+
+    privateBrowsing = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Force permanent private browsing (browser.privatebrowsing.autostart)
+        regardless of `mode`. On by default: combined with this module
+        wiping the whole profile on every restart anyway, it also keeps
+        history/cookies/cache from persisting *within* one continuous
+        session (between restarts, e.g. across an idle-reset-free
+        run) -- a visitor's browsing doesn't linger for the next one to
+        see, and nothing shows up in autocomplete.
+
+        CORRECTNESS-CRITICAL if you use `permissions.<type>.allow`:
+        confirmed via an isolated local A/B repro (same Firefox build,
+        same exact Permissions.Camera/Microphone policy JSON, same
+        getUserMedia() call) that leaving this on silently breaks that
+        `allow` list for any real getUserMedia()-based site -- Firefox's
+        enterprise-policy Allow exception is implemented through the
+        same permission-manager mechanism as a real user's remembered
+        site permission, which isn't honored inside a permanently-
+        private session (`blockNewRequests`, a plain global pref, still
+        works fine either way -- it's specifically the per-origin Allow
+        exception that doesn't apply). Set this to false on any host
+        that needs `permissions.*` to actually work for such a site;
+        the trade-off is the paragraph above no longer holding true
+        *within* a session (still wiped clean on every restart either
+        way).
       '';
     };
 
@@ -1437,6 +1483,7 @@ in
         # See scripts/firefox-kiosk.sh's header for why this is passed in
         # rather than hardcoded there.
         KIOSK_HOME = "/home/${cfg.user}";
+        KIOSK_PRIVATE_BROWSING = if cfg.privateBrowsing then "true" else "false";
         DEV_PIXELS_PER_PX = cfg.devPixelsPerPx;
         SCREEN_ROTATION = cfg.screenRotation;
         SCREEN_ROTATION_SCRIPT = "${pkgs.writeShellScript "screen-rotation" (builtins.readFile ./scripts/screen-rotation.sh)}";
