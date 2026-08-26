@@ -1,6 +1,15 @@
-// Blocks top-level navigation (link clicks) to any hostname not in
-// window.__KIOSK_ALLOWED_HOSTS__ (set by config.js, from configuration.nix's
-// `restrictNavigationToHosts`). A no-op if that's unset/null.
+// Two related guards against ending up on a hostname not in
+// window.__KIOSK_ALLOWED_HOSTS__ (set by config.js, from
+// services.kiosk-mode.navigation.allowedHosts). Both are a no-op if
+// that's unset/null:
+//
+//   1. Blocks the click on a link to a disallowed host before the
+//      navigation happens at all.
+//   2. Redirects back to __KIOSK_HOME_URL__ if the top-level document
+//      has ALREADY ended up on a disallowed host by any means #1 can't
+//      catch -- a script-driven `location.href` change, a form POST, a
+//      meta-refresh, or a server-side redirect from an otherwise-
+//      allowed page.
 //
 // This exists because the site's own content can legitimately link
 // off-site (e.g. an embedded YouTube video's own "Watch on YouTube"
@@ -70,4 +79,33 @@
     },
     true
   );
+
+  // Catches everything the click listener above can't: a script-driven
+  // `location.href = ...` (isolated-world content scripts can't stop
+  // that from here either, same reasoning as the window.open() comment
+  // above), a form POST, a meta-refresh, or a page on an allowed host
+  // that itself server-side redirects somewhere not allowed. Runs once
+  // per top-level navigation (a fresh navigation re-injects this
+  // content script from scratch, so there's no need for this to be a
+  // recurring poll) -- top frame only, since window.top === window.self
+  // is false inside a legitimately embedded iframe (e.g. a video
+  // player), whose own location being on a different host is expected,
+  // not a kiosk-escape.
+  //
+  // isAllowed(homeUrl) is a fail-safe, not an expected case: it's only
+  // false if the operator's own allowedHosts doesn't cover their own
+  // url's host (needed separately anyway, for ordinary links TO it to
+  // work) -- without this guard, that specific misconfiguration would
+  // make the redirect target of this very check fail its own check,
+  // reloading forever instead of just not redirecting.
+  var homeUrl = window.__KIOSK_HOME_URL__;
+  if (
+    window.top === window.self &&
+    homeUrl &&
+    location.href !== homeUrl &&
+    !isAllowed(location.href) &&
+    isAllowed(homeUrl)
+  ) {
+    location.replace(homeUrl);
+  }
 })();

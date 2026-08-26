@@ -978,17 +978,27 @@ one of “custom”, “builtin”
 
 
 
-A list of hostnames, or null to disable\. When set, blocks
-clicking any link to a hostname NOT in the list (or a subdomain
-of one) – a direct kiosk-escape route needing no keyboard
-trick at all (e\.g\. an embedded video’s own “watch on the
-original site” button, or a mailto: link opening a native
-“choose an application” dialog)\. Doesn’t touch legitimately
+A list of hostnames, or null to disable\. When set, this does
+two things: blocks clicking any link to a hostname NOT in the
+list (or a subdomain of one) – a direct kiosk-escape route
+needing no keyboard trick at all (e\.g\. an embedded video’s own
+“watch on the original site” button, or a mailto: link opening
+a native “choose an application” dialog) – and, separately,
+redirects back to ` url ` if the kiosk ends up on a disallowed
+host by any OTHER means (a script-driven navigation, a form
+submit, a meta-refresh, or a server-side redirect from an
+otherwise-allowed page – none of which a click listener alone
+catches)\. ` url `’s own host doesn’t need to be listed here for
+this second check specifically (it’s always treated as
+allowed, so the redirect target can never fail its own check
+and loop) – it still needs to be listed for ordinary links TO
+it to work, same as any other host\. Doesn’t touch legitimately
 embedded third-party content (iframes) – only intercepts a
-visitor actually clicking through to leave the site\. A list
-rather than one hostname since a site can legitimately span
-more than one domain (e\.g\. a short-link domain alongside the
-main one, or a companion platform it links out to)\.
+visitor actually clicking through to leave the site, or the
+top-level document itself ending up elsewhere\. A list rather
+than one hostname since a site can legitimately span more than
+one domain (e\.g\. a short-link domain alongside the main one,
+or a companion platform it links out to)\.
 
 
 
