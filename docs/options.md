@@ -2174,6 +2174,178 @@ true
 
 
 
+## services\.kiosk-mode\.permissions\.storageAccess
+
+
+
+Firefox’s third-party-cookie / Storage Access API behavior\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.storageAccess\.enable
+
+
+
+Whether this module manages the Storage Access API prompt
+(` document.requestStorageAccess() ` – “\<site> wants to use
+cookies from \<other site> while browsing this site”) at
+all\. When false, Firefox’s own default is untouched\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+false
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.storageAccess\.allow
+
+
+
+Origins always allowed cookies, including as a third party – no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+
+
+*Example:*
+
+```nix
+[
+  "https://example.com"
+]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.storageAccess\.behavior
+
+
+
+Firefox’s global third-party-cookie policy for every origin
+not covered by ` allow `/` block ` – see Mozilla’s own Cookies
+policy documentation for what each value does\. Defaults to
+“reject-foreign” (block third-party cookies outright, no
+per-request negotiation) rather than Firefox’s own current
+default (“reject-tracker-and-partition-foreign”, the
+partition-and-prompt-driven Total Cookie Protection model)
+specifically because partitioning is itself what the
+Storage Access API prompt exists to negotiate around –
+“reject-foreign” has no such negotiation step, so there’s
+nothing left to prompt about\. NOT confirmed live to
+actually suppress the prompt, unlike this module’s other
+` permissions.* ` entries – Mozilla’s docs don’t spell out
+the exact relationship between this setting and that
+specific dialog\. Verify against a real site that triggers
+it before relying on this\.
+
+
+
+*Type:*
+one of “accept”, “reject-foreign”, “reject”, “limit-foreign”, “reject-tracker”, “reject-tracker-and-partition-foreign”
+
+
+
+*Default:*
+
+```nix
+"reject-foreign"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.storageAccess\.block
+
+
+
+Origins always denied cookies – no prompt\.
+
+
+
+*Type:*
+list of string
+
+
+
+*Default:*
+
+```nix
+[ ]
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.permissions\.storageAccess\.locked
+
+
+
+Prevent changing cookie settings via about:preferences\.
+
+
+
+*Type:*
+boolean
+
+
+
+*Default:*
+
+```nix
+true
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
 ## services\.kiosk-mode\.permissions\.virtualReality
 
 

@@ -435,6 +435,74 @@ let
     description = "Firefox's Autoplay permission (audio+video autoplay-with-sound).";
   };
 
+  # Also its own option rather than forced through mkPermissionOption's
+  # shape: it maps to a completely different Firefox policy (Cookies,
+  # not Permissions -- see storageAccessPolicy's own comment below for
+  # why), with a `behavior` enum instead of `blockNewRequests`.
+  storageAccessPermission = lib.mkOption {
+    type = lib.types.submodule {
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = ''
+            Whether this module manages the Storage Access API prompt
+            (`document.requestStorageAccess()` -- "<site> wants to use
+            cookies from <other site> while browsing this site") at
+            all. When false, Firefox's own default is untouched.
+          '';
+        };
+        allow = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          example = [ "https://example.com" ];
+          description = "Origins always allowed cookies, including as a third party -- no prompt.";
+        };
+        block = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = "Origins always denied cookies -- no prompt.";
+        };
+        behavior = lib.mkOption {
+          type = lib.types.enum [
+            "accept"
+            "reject-foreign"
+            "reject"
+            "limit-foreign"
+            "reject-tracker"
+            "reject-tracker-and-partition-foreign"
+          ];
+          default = "reject-foreign";
+          description = ''
+            Firefox's global third-party-cookie policy for every origin
+            not covered by `allow`/`block` -- see Mozilla's own Cookies
+            policy documentation for what each value does. Defaults to
+            "reject-foreign" (block third-party cookies outright, no
+            per-request negotiation) rather than Firefox's own current
+            default ("reject-tracker-and-partition-foreign", the
+            partition-and-prompt-driven Total Cookie Protection model)
+            specifically because partitioning is itself what the
+            Storage Access API prompt exists to negotiate around --
+            "reject-foreign" has no such negotiation step, so there's
+            nothing left to prompt about. NOT confirmed live to
+            actually suppress the prompt, unlike this module's other
+            `permissions.*` entries -- Mozilla's docs don't spell out
+            the exact relationship between this setting and that
+            specific dialog. Verify against a real site that triggers
+            it before relying on this.
+          '';
+        };
+        locked = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = "Prevent changing cookie settings via about:preferences.";
+        };
+      };
+    };
+    default = { };
+    description = "Firefox's third-party-cookie / Storage Access API behavior.";
+  };
+
   # Maps this module's own field names to Firefox's real Permissions
   # policy JSON, and drops any permission left at `enable = false`
   # entirely -- an unconfigured permission must produce NO policy key at
@@ -467,6 +535,31 @@ let
         Locked = cfg.permissions.autoplay.locked;
       };
     };
+
+  # NOT part of Firefox's Permissions policy (confirmed against
+  # Mozilla's own docs -- there's no Permissions.StorageAccess entry),
+  # because the underlying prompt this maps to isn't a Permissions.*
+  # one at all: `document.requestStorageAccess()` (the "<site> wants to
+  # use cookies from <other site> while browsing this site" dialog) is
+  # governed by the separate Cookies policy instead, which has no
+  # BlockNewRequests-equivalent field -- only a single global `Behavior`
+  # enum plus per-origin Allow/Block/AllowSession override lists.
+  # "reject-foreign" (hard, unconditional third-party-cookie blocking,
+  # no negotiation) is this module's best-effort mapping of "block
+  # everyone not explicitly allowed, no prompt" onto that narrower
+  # vocabulary -- UNLIKE the Permissions.<Type> family above, this has
+  # NOT been confirmed live to actually suppress the prompt (Mozilla's
+  # docs don't spell out the exact relationship between Behavior and
+  # this specific dialog the way they do for BlockNewRequests). Verify
+  # against a real site that triggers it before relying on this.
+  storageAccessPolicy = lib.optionalAttrs cfg.permissions.storageAccess.enable {
+    Cookies = {
+      Allow = cfg.permissions.storageAccess.allow;
+      Block = cfg.permissions.storageAccess.block;
+      Behavior = cfg.permissions.storageAccess.behavior;
+      Locked = cfg.permissions.storageAccess.locked;
+    };
+  };
 in
 {
   options.services.kiosk-mode = {
@@ -948,6 +1041,7 @@ in
       virtualReality = mkPermissionOption "VirtualReality";
       screenShare = mkPermissionOption "ScreenShare";
       autoplay = autoplayPermission;
+      storageAccess = storageAccessPermission;
     };
   };
 
@@ -1201,6 +1295,7 @@ in
         })
         { ExtensionSettings = extensionSettingsFromApi; }
         (lib.mkIf (permissionsPolicy != { }) { Permissions = permissionsPolicy; })
+        (lib.mkIf (storageAccessPolicy != { }) storageAccessPolicy)
       ];
     };
 
