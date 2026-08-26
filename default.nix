@@ -492,13 +492,17 @@ in
 
               action = lib.mkOption {
                 type = lib.types.str;
-                example = "back";
+                example = "https://example.com/";
                 description = ''
-                  What tapping this button does. Either the literal
-                  string "back" (calls history.back(), and the button
-                  dims/disables itself when there's nothing to go back
-                  to -- see kiosk-keyboard-extension/nav-buttons.js), or
-                  any URL to navigate to instead.
+                  What tapping this button does. Any URL navigates the
+                  kiosk there -- this is the normal case, and what the
+                  built-in `home` button uses (its own `action` is set to
+                  this module's `url`). The one special value is the
+                  literal string `"back"` (used by the built-in `back`
+                  button), which calls history.back() instead of
+                  navigating to a literal page called "back", and makes
+                  the button dim/disable itself when there's nothing to
+                  go back to -- see kiosk-keyboard-extension/nav-buttons.js.
                 '';
               };
             };
