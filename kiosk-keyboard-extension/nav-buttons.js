@@ -1,23 +1,21 @@
 // Small floating nav buttons for kiosks with no browser chrome at all (no
-// back/home button, no swipe-back gesture support in cage/Wayland):
-//   - Back (history.back()) -- for a kiosk with subpages to navigate back
-//     out of. Gated by window.__KIOSK_ENABLE_BACK_BUTTON__.
-//   - Home (navigates to window.__KIOSK_HOME_URL__, the site's own
-//     kiosk_url) -- a one-tap reset back to the intended page, for when a
-//     visitor has wandered several pages deep. Gated by
-//     window.__KIOSK_ENABLE_HOME_BUTTON__.
-// Both flags (and __KIOSK_HOME_URL__) are set by config.js, from
-// configuration.nix's `enableBackButton`/`enableHomeButton`/`kiosk_url` --
-// independent toggles, a host can enable either, both, or neither.
+// back/home button, no swipe-back gesture support in cage/Wayland).
+// Rendered from window.__KIOSK_NAV_BUTTONS__, an array of
+// { icon, action } objects set by config.js from
+// services.kiosk-mode.navigation.buttons (an attrsOf-submodule NixOS
+// option, not hardcoded here -- "back"/"home" are just that option's own
+// built-in entries, same as any user-added one). `action` is either the
+// literal string "back" (history.back(), with the button dimming/
+// disabling itself when there's nothing to go back to) or a URL to
+// navigate to.
 // Top-left corner, not bottom -- kept out of the way of page content that
 // tends to run to the bottom (e.g. this site's own on-screen keyboard,
 // when it's showing).
 (function () {
   "use strict";
 
-  var showBack = !!window.__KIOSK_ENABLE_BACK_BUTTON__;
-  var showHome = !!window.__KIOSK_ENABLE_HOME_BUTTON__;
-  if (!showBack && !showHome) return;
+  var buttons = window.__KIOSK_NAV_BUTTONS__ || [];
+  if (!buttons.length) return;
 
   var bar = document.createElement("div");
   bar.style.cssText = [
@@ -29,10 +27,11 @@
     "gap: 10px",
   ].join(";");
 
-  function makeButton(label, onClick) {
+  function makeButton(label, ariaLabel, onClick) {
     var btn = document.createElement("div");
     btn.textContent = label;
     btn.setAttribute("role", "button");
+    btn.setAttribute("aria-label", ariaLabel);
     // 54px, a bit above the 48px touch-target minimum content.js's
     // keyboard keys and context-menu.js's buttons use (see their own
     // comments on that baseline) -- deliberately larger here since these
@@ -68,36 +67,35 @@
     return btn;
   }
 
-  if (showBack) {
-    var backBtn = makeButton("←", function () {
-      window.history.back();
-    });
-    backBtn.setAttribute("aria-label", "Back");
+  buttons.forEach(function (spec) {
+    if (spec.action === "back") {
+      var backBtn = makeButton(spec.icon, "Back", function () {
+        window.history.back();
+      });
 
-    // history.length is a reasonable proxy for "is there anywhere to go
-    // back to" specifically because firefox-kiosk.sh wipes the profile
-    // fresh on every cage-tty1 start -- the kiosk always launches straight
-    // to kiosk_url as entry 1, so length > 1 only happens from a visitor's
-    // own subsequent same-tab navigation, not leftover history from a
-    // previous session.
-    function refreshBack() {
-      var canGoBack = window.history.length > 1;
-      backBtn.style.opacity = canGoBack ? "1" : "0.35";
-      backBtn.style.pointerEvents = canGoBack ? "auto" : "none";
+      // history.length is a reasonable proxy for "is there anywhere to go
+      // back to" specifically because firefox-kiosk.sh wipes the profile
+      // fresh on every cage-tty1 start -- the kiosk always launches
+      // straight to the configured URL as entry 1, so length > 1 only
+      // happens from a visitor's own subsequent same-tab navigation, not
+      // leftover history from a previous session.
+      function refreshBack() {
+        var canGoBack = window.history.length > 1;
+        backBtn.style.opacity = canGoBack ? "1" : "0.35";
+        backBtn.style.pointerEvents = canGoBack ? "auto" : "none";
+      }
+      window.addEventListener("popstate", refreshBack);
+      refreshBack();
+
+      bar.appendChild(backBtn);
+    } else {
+      var url = spec.action;
+      var navBtn = makeButton(spec.icon, "Navigate to " + url, function () {
+        location.href = url;
+      });
+      bar.appendChild(navBtn);
     }
-    window.addEventListener("popstate", refreshBack);
-    refreshBack();
-
-    bar.appendChild(backBtn);
-  }
-
-  if (showHome && window.__KIOSK_HOME_URL__) {
-    var homeBtn = makeButton("⌂", function () {
-      location.href = window.__KIOSK_HOME_URL__;
-    });
-    homeBtn.setAttribute("aria-label", "Home");
-    bar.appendChild(homeBtn);
-  }
+  });
 
   document.documentElement.appendChild(bar);
 })();

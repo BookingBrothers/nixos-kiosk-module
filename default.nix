@@ -25,20 +25,28 @@
 let
   cfg = config.services.kiosk-mode;
 
+  enabledNavButtons = lib.filter (b: b.enable) (lib.attrValues cfg.navigation.buttons);
+
   enableNavExtension =
-    cfg.navigation.onScreenKeyboard.enable
-    || cfg.navigation.backButton.enable
-    || cfg.navigation.homeButton.enable
-    || cfg.navigation.allowedHosts != null;
+    cfg.navigation.onScreenKeyboard.enable || enabledNavButtons != [ ] || cfg.navigation.allowedHosts != null;
 
   # The one generated file in the on-screen-keyboard/nav extension: pure
   # data assignments (no control flow, nothing script-like) handing this
   # host's resolved config to the otherwise fully static nav-buttons.js/
   # nav-guard.js content scripts.
   kioskExtensionConfig = pkgs.writeText "config.js" ''
-    window.__KIOSK_ENABLE_BACK_BUTTON__ = ${lib.boolToString cfg.navigation.backButton.enable};
-    window.__KIOSK_ENABLE_HOME_BUTTON__ = ${lib.boolToString cfg.navigation.homeButton.enable};
-    window.__KIOSK_HOME_URL__ = ${builtins.toJSON cfg.url};
+    // attrValues/filter iterate in attribute-name (lexicographic) order,
+    // so buttons render left-to-right sorted by their Nix-level key --
+    // "back" before "home" is exactly why the two built-ins are named
+    // that, not e.g. "1-back"/"2-home". Name your own entries with that
+    // in mind if display order matters to you.
+    window.__KIOSK_NAV_BUTTONS__ = ${
+      builtins.toJSON (
+        map (b: {
+          inherit (b) icon action;
+        }) enabledNavButtons
+      )
+    };
     window.__KIOSK_ALLOWED_HOSTS__ = ${
       if cfg.navigation.allowedHosts != null then builtins.toJSON cfg.navigation.allowedHosts else "null"
     };
@@ -394,12 +402,45 @@ in
               description = "Matched against ATTRS{idProduct} (services.udev.extraRules).";
             };
             calibrationMatrix = lib.mkOption {
-              type = lib.types.str;
-              example = "1 0 0 0 1 0";
+              type = lib.types.submodule {
+                options = lib.genAttrs [ "normal" "left" "right" "inverted" ] (
+                  rotation:
+                  lib.mkOption {
+                    type = lib.types.str;
+                    default = "1 0 0 0 1 0"; # identity -- no adjustment
+                    example = "0 -1 1 1 0 0";
+                    description = ''
+                      LIBINPUT_CALIBRATION_MATRIX (same X.Org Coordinate
+                      Transformation Matrix convention libinput uses) for
+                      `screenRotation = "${rotation}"`. Automatically
+                      selected by that option's current value, so a host
+                      that only ever runs "normal" never needs to touch
+                      this at all; a host that rotates needs to override
+                      whichever rotations it actually uses. Defaults to
+                      the identity matrix (no adjustment) for every
+                      rotation, which is only actually CORRECT for
+                      "normal" -- left as the default for the others too
+                      since there's no universally-right guess for a 90/
+                      180/270-degree correction: on one real device, the
+                      "obvious" CCW/CW pairing for a 90-degree rotation
+                      turned out backwards for drag-gesture direction
+                      even though tap POSITION looked fine, only caught
+                      by testing an actual drag rather than a tap. An
+                      unrotated identity matrix on an actually-rotated
+                      screen is a visible, fixable-by-testing
+                      misalignment, not a silently-plausible-looking
+                      wrong value, which is why it's still a safe
+                      default to ship rather than making every
+                      non-"normal" rotation a hard error.
+                    '';
+                  }
+                );
+              };
+              default = { };
               description = ''
-                The final, already-resolved-for-the-current-rotation
-                LIBINPUT_CALIBRATION_MATRIX string (same X.Org Coordinate
-                Transformation Matrix convention libinput uses).
+                Per-rotation LIBINPUT_CALIBRATION_MATRIX strings -- see
+                each rotation's own field description. The one actually
+                applied is picked automatically from `screenRotation`.
               '';
             };
           };
@@ -416,16 +457,64 @@ in
         dashboards (e.g. a read-only display) have nothing to type into
       '';
 
-      backButton.enable = lib.mkEnableOption ''
-        a small floating back button (history.back()), top-left corner --
-        independent of onScreenKeyboard, since a kiosk can have subpages
-        to navigate back out of without needing text input at all
-      '';
+      # Real, user-extensible API (attrsOf submodule, same shape as
+      # `extensions` above) rather than two hardcoded booleans -- `back`
+      # and `home` below are this option's own built-in entries, not
+      # special-cased code, so add your own the same way:
+      # `services.kiosk-mode.navigation.buttons.settings = { icon = "⚙";
+      # action = "https://example.com/settings"; };`, and turn a built-in
+      # one off the same way any entry overrides another:
+      # `services.kiosk-mode.navigation.buttons.home.enable = false;`.
+      buttons = lib.mkOption {
+        type = lib.types.attrsOf (
+          lib.types.submodule {
+            options = {
+              enable = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = "Whether to show this button.";
+              };
 
-      homeButton.enable = lib.mkEnableOption ''
-        a small floating home button (navigates to `url`), alongside the
-        back button in the same top-left corner
-      '';
+              icon = lib.mkOption {
+                type = lib.types.str;
+                example = "←";
+                description = ''
+                  A single glyph rendered as the button's content. Any
+                  Unicode character works -- arrows, symbols, emoji (e.g.
+                  U+2190 "←" for back, U+2302 "⌂" for home). Browse
+                  https://unicode-table.com or similar for something to
+                  pick by name/category rather than committing this
+                  module to bundling and versioning an actual icon-font
+                  dependency for what's normally a one-or-two-button bar.
+                '';
+              };
+
+              action = lib.mkOption {
+                type = lib.types.str;
+                example = "back";
+                description = ''
+                  What tapping this button does. Either the literal
+                  string "back" (calls history.back(), and the button
+                  dims/disables itself when there's nothing to go back
+                  to -- see kiosk-keyboard-extension/nav-buttons.js), or
+                  any URL to navigate to instead.
+                '';
+              };
+            };
+          }
+        );
+        default = { };
+        description = ''
+          Small floating buttons, top-left corner, for kiosks with no
+          browser chrome at all (no back/home button, no swipe-back
+          gesture support in cage/Wayland) -- keyed by an arbitrary short
+          Nix-level name, same convention as `extensions` above. `back`
+          and `home` ship built in but OFF by default (most dashboards,
+          e.g. a read-only display, have no subpages to navigate out of
+          in the first place); turn either on with
+          `services.kiosk-mode.navigation.buttons.<back|home>.enable = true;`.
+        '';
+      };
 
       allowedHosts = lib.mkOption {
         type = lib.types.nullOr (lib.types.listOf lib.types.str);
@@ -565,6 +654,23 @@ in
       };
     };
 
+    # The two built-in nav buttons -- same per-field-mkDefault reasoning
+    # as `extensions` above applies here too (attrsOf submodule, built-in
+    # entries need it or a caller overriding just `.enable` breaks `.icon`/
+    # `.action`).
+    services.kiosk-mode.navigation.buttons = {
+      back = {
+        icon = lib.mkDefault "←";
+        action = lib.mkDefault "back";
+        enable = lib.mkDefault false; # matches this button's previous default (enableBackButton ? false)
+      };
+      home = {
+        icon = lib.mkDefault "⌂";
+        action = lib.mkDefault cfg.url; # overridable to point somewhere other than `url` if that's ever wanted
+        enable = lib.mkDefault false; # matches this button's previous default (enableHomeButton ? false)
+      };
+    };
+
     # Prevents a real, repeatedly-hit race rather than papering over it:
     # cage always claims tty1 (TTYPath in nixpkgs' cage module), and
     # whenever cage-tty1.service is briefly stopped (e.g. mid
@@ -582,7 +688,7 @@ in
     systemd.services."getty@tty1".enable = false;
 
     services.udev.extraRules = lib.mkIf (cfg.touch != null) ''
-      SUBSYSTEM=="input", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", ENV{LIBINPUT_CALIBRATION_MATRIX}="${cfg.touch.calibrationMatrix}"
+      SUBSYSTEM=="input", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", ENV{LIBINPUT_CALIBRATION_MATRIX}="${cfg.touch.calibrationMatrix.${cfg.screenRotation}}"
       SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="${cfg.touch.vendorId}", ATTRS{idProduct}=="${cfg.touch.productId}", SYMLINK+="input/kiosk-touch"
     '';
 

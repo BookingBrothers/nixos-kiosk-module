@@ -573,14 +573,42 @@ null
 
 
 
-## services\.kiosk-mode\.navigation\.backButton\.enable
+## services\.kiosk-mode\.navigation\.buttons
 
 
 
-Whether to enable a small floating back button (history\.back()), top-left corner –
-independent of onScreenKeyboard, since a kiosk can have subpages
-to navigate back out of without needing text input at all
-\.
+Small floating buttons, top-left corner, for kiosks with no
+browser chrome at all (no back/home button, no swipe-back
+gesture support in cage/Wayland) – keyed by an arbitrary short
+Nix-level name, same convention as ` extensions ` above\. ` back `
+and ` home ` ship built in but OFF by default (most dashboards,
+e\.g\. a read-only display, have no subpages to navigate out of
+in the first place); turn either on with
+` services.kiosk-mode.navigation.buttons.<back|home>.enable = true; `\.
+
+
+
+*Type:*
+attribute set of (submodule)
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.navigation\.buttons\.\<name>\.enable
+
+
+
+Whether to show this button\.
 
 
 
@@ -590,14 +618,6 @@ boolean
 
 
 *Default:*
-
-```nix
-false
-```
-
-
-
-*Example:*
 
 ```nix
 true
@@ -608,33 +628,57 @@ true
 
 
 
-## services\.kiosk-mode\.navigation\.homeButton\.enable
+## services\.kiosk-mode\.navigation\.buttons\.\<name>\.action
 
 
 
-Whether to enable a small floating home button (navigates to ` url `), alongside the
-back button in the same top-left corner
-\.
+What tapping this button does\. Either the literal
+string “back” (calls history\.back(), and the button
+dims/disables itself when there’s nothing to go back
+to – see kiosk-keyboard-extension/nav-buttons\.js), or
+any URL to navigate to instead\.
 
 
 
 *Type:*
-boolean
-
-
-
-*Default:*
-
-```nix
-false
-```
+string
 
 
 
 *Example:*
 
 ```nix
-true
+"back"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.navigation\.buttons\.\<name>\.icon
+
+
+
+A single glyph rendered as the button’s content\. Any
+Unicode character works – arrows, symbols, emoji (e\.g\.
+U+2190 “←” for back, U+2302 “⌂” for home)\. Browse
+https://unicode-table\.com or similar for something to
+pick by name/category rather than committing this
+module to bundling and versioning an actual icon-font
+dependency for what’s normally a one-or-two-button bar\.
+
+
+
+*Type:*
+string
+
+
+
+*Example:*
+
+```nix
+"←"
 ```
 
 *Declared by:*
@@ -744,9 +788,54 @@ null
 
 
 
-The final, already-resolved-for-the-current-rotation
-LIBINPUT_CALIBRATION_MATRIX string (same X\.Org Coordinate
-Transformation Matrix convention libinput uses)\.
+Per-rotation LIBINPUT_CALIBRATION_MATRIX strings – see
+each rotation’s own field description\. The one actually
+applied is picked automatically from ` screenRotation `\.
+
+
+
+*Type:*
+submodule
+
+
+
+*Default:*
+
+```nix
+{ }
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.touch\.calibrationMatrix\.inverted
+
+
+
+LIBINPUT_CALIBRATION_MATRIX (same X\.Org Coordinate
+Transformation Matrix convention libinput uses) for
+` screenRotation = "inverted" `\. Automatically
+selected by that option’s current value, so a host
+that only ever runs “normal” never needs to touch
+this at all; a host that rotates needs to override
+whichever rotations it actually uses\. Defaults to
+the identity matrix (no adjustment) for every
+rotation, which is only actually CORRECT for
+“normal” – left as the default for the others too
+since there’s no universally-right guess for a 90/
+180/270-degree correction: on one real device, the
+“obvious” CCW/CW pairing for a 90-degree rotation
+turned out backwards for drag-gesture direction
+even though tap POSITION looked fine, only caught
+by testing an actual drag rather than a tap\. An
+unrotated identity matrix on an actually-rotated
+screen is a visible, fixable-by-testing
+misalignment, not a silently-plausible-looking
+wrong value, which is why it’s still a safe
+default to ship rather than making every
+non-“normal” rotation a hard error\.
 
 
 
@@ -755,10 +844,177 @@ string
 
 
 
-*Example:*
+*Default:*
 
 ```nix
 "1 0 0 0 1 0"
+```
+
+
+
+*Example:*
+
+```nix
+"0 -1 1 1 0 0"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.touch\.calibrationMatrix\.left
+
+
+
+LIBINPUT_CALIBRATION_MATRIX (same X\.Org Coordinate
+Transformation Matrix convention libinput uses) for
+` screenRotation = "left" `\. Automatically
+selected by that option’s current value, so a host
+that only ever runs “normal” never needs to touch
+this at all; a host that rotates needs to override
+whichever rotations it actually uses\. Defaults to
+the identity matrix (no adjustment) for every
+rotation, which is only actually CORRECT for
+“normal” – left as the default for the others too
+since there’s no universally-right guess for a 90/
+180/270-degree correction: on one real device, the
+“obvious” CCW/CW pairing for a 90-degree rotation
+turned out backwards for drag-gesture direction
+even though tap POSITION looked fine, only caught
+by testing an actual drag rather than a tap\. An
+unrotated identity matrix on an actually-rotated
+screen is a visible, fixable-by-testing
+misalignment, not a silently-plausible-looking
+wrong value, which is why it’s still a safe
+default to ship rather than making every
+non-“normal” rotation a hard error\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"1 0 0 0 1 0"
+```
+
+
+
+*Example:*
+
+```nix
+"0 -1 1 1 0 0"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.touch\.calibrationMatrix\.normal
+
+
+
+LIBINPUT_CALIBRATION_MATRIX (same X\.Org Coordinate
+Transformation Matrix convention libinput uses) for
+` screenRotation = "normal" `\. Automatically
+selected by that option’s current value, so a host
+that only ever runs “normal” never needs to touch
+this at all; a host that rotates needs to override
+whichever rotations it actually uses\. Defaults to
+the identity matrix (no adjustment) for every
+rotation, which is only actually CORRECT for
+“normal” – left as the default for the others too
+since there’s no universally-right guess for a 90/
+180/270-degree correction: on one real device, the
+“obvious” CCW/CW pairing for a 90-degree rotation
+turned out backwards for drag-gesture direction
+even though tap POSITION looked fine, only caught
+by testing an actual drag rather than a tap\. An
+unrotated identity matrix on an actually-rotated
+screen is a visible, fixable-by-testing
+misalignment, not a silently-plausible-looking
+wrong value, which is why it’s still a safe
+default to ship rather than making every
+non-“normal” rotation a hard error\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"1 0 0 0 1 0"
+```
+
+
+
+*Example:*
+
+```nix
+"0 -1 1 1 0 0"
+```
+
+*Declared by:*
+ - [default.nix](https://github.com/BookingBrothers/nixos-kiosk-module/blob/main/default.nix)
+
+
+
+## services\.kiosk-mode\.touch\.calibrationMatrix\.right
+
+
+
+LIBINPUT_CALIBRATION_MATRIX (same X\.Org Coordinate
+Transformation Matrix convention libinput uses) for
+` screenRotation = "right" `\. Automatically
+selected by that option’s current value, so a host
+that only ever runs “normal” never needs to touch
+this at all; a host that rotates needs to override
+whichever rotations it actually uses\. Defaults to
+the identity matrix (no adjustment) for every
+rotation, which is only actually CORRECT for
+“normal” – left as the default for the others too
+since there’s no universally-right guess for a 90/
+180/270-degree correction: on one real device, the
+“obvious” CCW/CW pairing for a 90-degree rotation
+turned out backwards for drag-gesture direction
+even though tap POSITION looked fine, only caught
+by testing an actual drag rather than a tap\. An
+unrotated identity matrix on an actually-rotated
+screen is a visible, fixable-by-testing
+misalignment, not a silently-plausible-looking
+wrong value, which is why it’s still a safe
+default to ship rather than making every
+non-“normal” rotation a hard error\.
+
+
+
+*Type:*
+string
+
+
+
+*Default:*
+
+```nix
+"1 0 0 0 1 0"
+```
+
+
+
+*Example:*
+
+```nix
+"0 -1 1 1 0 0"
 ```
 
 *Declared by:*
