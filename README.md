@@ -58,11 +58,10 @@ All options live under `services.kiosk-mode`. The only one you must set is
 built-in entries -- see [Extensions](#extensions) below).
 
 **Full reference: [`docs/options.md`](docs/options.md)** -- generated from
-the doc comments in `default.nix`, the same convention as
-[nixpkgs-lib-extensions' `docs/lib.md`](https://github.com/dvaerum/nixpkgs-lib-extensions/blob/main/docs/lib.md).
-Do not edit it by hand; after changing an option's type/default/description,
-run `nix run .#gen-docs` and commit the result -- `nix flake check`
-(`checks.docs-up-to-date`, wired into CI) fails if you forget.
+the doc comments in `default.nix`. Do not edit it by hand; after changing
+an option's type/default/description, run `nix run .#gen-docs` and commit
+the result -- `nix flake check` (`checks.docs-up-to-date`, wired into CI)
+fails if you forget.
 
 ### Extensions
 

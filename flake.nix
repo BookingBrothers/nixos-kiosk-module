@@ -80,8 +80,7 @@
 
       # `nix run .#gen-docs` regenerates docs/options.md from the module's
       # own option declarations -- run this after changing an option's
-      # type/default/description, same convention as
-      # nixpkgs-lib-extensions' `nix run .#gen-docs`.
+      # type/default/description.
       apps.${system}.gen-docs = {
         type = "app";
         meta.description = "Regenerate docs/options.md from services.kiosk-mode's own option declarations";
