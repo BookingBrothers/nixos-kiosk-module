@@ -1,6 +1,6 @@
-// Touch on-screen keyboard for common/configuration/dashboard kiosks
-// (enableKeyboard = true). Built and force-installed by that module's
-// default.nix -- see there for how/why.
+// Touch on-screen keyboard for services.kiosk-mode
+// (navigation.onScreenKeyboard.enable = true). Built and force-installed
+// by that module's default.nix -- see there for how/why.
 //
 // This exists because the compositor (cage) doesn't implement wlr-layer-shell,
 // which is what a system-level virtual keyboard (e.g. wvkbd) needs to overlay

@@ -5,7 +5,7 @@
   "description": "Touch on-screen keyboard for services.kiosk-mode (layout follows the page's declared language), a minimal Cut/Copy/Paste-only right-click menu replacing Firefox's native one, optional back/home buttons, and optional same-site navigation locking.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "kiosk-keyboard@dashboard.local",
+      "id": "kiosk-keyboard@kiosk-mode.local",
       "strict_min_version": "115.0"
     }
   },

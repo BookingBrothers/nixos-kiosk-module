@@ -56,19 +56,70 @@ let
     zip -r -X $out manifest.json content.js context-menu.js nav-buttons.js nav-guard.js config.js
   '';
 
-  # Consent-O-Matic (auto-answers GDPR cookie-consent dialogs) opens its
-  # own options.html tab once on every FRESH profile -- its background
-  # script gates this on a browser.storage.sync flag that defaults to
-  # true and flips itself to false right after. On a normal install
-  # that's a harmless one-time thing, but this module wipes and recreates
-  # the whole profile on every single restart, so without pre-seeding
-  # that flag it re-triggers EVERY restart, stealing the display from
-  # `cfg.url`.
+  # ---- generic Firefox extensions API -------------------------------
   #
-  # Schema/table names/data shape here are copied verbatim from a real
-  # Firefox profile's storage-sync-v2.sqlite after letting the extension
-  # flip the flag itself once and inspecting the result -- Firefox's
-  # on-disk format for this API isn't documented anywhere reliable.
+  # `cfg.extensions` is an attrsOf submodule, the same shape nixpkgs uses
+  # for e.g. systemd.services.<name> -- the attribute NAME (e.g.
+  # "uBlockOrigin") is just a Nix-level handle for overriding one entry;
+  # the extension's real identity is its own `id` option. uBlockOrigin/
+  # consentOMatic/autoscrollShorts below are the option's own `default`
+  # value, not special-cased Nix code -- add your own extension the
+  # exact same way: `services.kiosk-mode.extensions.myThing = { id =
+  # "..."; };`, or turn a built-in one off with
+  # `services.kiosk-mode.extensions.uBlockOrigin.enable = false;`.
+  enabledExtensions = lib.filterAttrs (_: ext: ext.enable) cfg.extensions;
+
+  # Extensions that ship their own (necessarily unsigned) xpi need the
+  # signature-check bypass and firefox-devedition, same as the on-screen-
+  # keyboard extension above.
+  xpiExtensions = lib.filterAttrs (_: ext: ext.xpi != null) enabledExtensions;
+  needsUnsignedInstall = enableNavExtension || xpiExtensions != { };
+
+  # Computed once, up front, rather than relying on the module system to
+  # concatenate a list-typed leaf (Extensions.Install) across several
+  # separate `lib.mkMerge` blocks -- programs.firefox.policies is a
+  # loosely-typed JSON passthrough, and depending on more than one
+  # definition merging into ONE list correctly there is a real footgun,
+  # not a hypothetical one.
+  installXpiUrls =
+    lib.optional enableNavExtension "file://${kioskKeyboardXpi}"
+    ++ map (ext: "file://${ext.xpi}") (lib.attrValues xpiExtensions);
+
+  extensionSettingsFromApi = lib.mapAttrs' (
+    _: ext:
+    lib.nameValuePair ext.id (
+      {
+        installation_mode = ext.installationMode;
+        private_browsing = ext.privateBrowsing;
+      }
+      // lib.optionalAttrs (ext.installUrl != null) { install_url = ext.installUrl; }
+      // ext.settings
+    )
+  ) enabledExtensions;
+
+  # ---- shared browser.storage.sync seed db ---------------------------
+  #
+  # Some extensions gate first-run behavior (e.g. an onboarding tab) on a
+  # browser.storage.sync flag that defaults to "show it", and flips
+  # itself off right after. On a normal install that's a harmless
+  # one-time thing, but this module wipes and recreates the whole
+  # profile on every single restart, so without pre-seeding that flag it
+  # re-triggers EVERY restart, stealing the display from `cfg.url` (this
+  # is exactly what consentOMatic below needs its own `storageSyncSeed`
+  # for).
+  #
+  # storage.sync's on-disk format (for a profile that's never actually
+  # signed in to Firefox Sync) is ONE SQLite database per profile, not
+  # one per extension -- `storage_sync_data` is a single table keyed by
+  # extension id -- so seeds from every extension that sets
+  # `storageSyncSeed` are merged into one shared db here, not shipped as
+  # separate files that would just overwrite each other.
+  #
+  # Schema/table names/data shape are copied verbatim from a real
+  # Firefox profile's storage-sync-v2.sqlite after letting an extension
+  # (Consent-O-Matic) flip its own flag once and inspecting the result --
+  # Firefox's on-disk format for this API isn't documented anywhere
+  # reliable.
   #
   # CORRECTNESS-CRITICAL: `PRAGMA user_version = 2;` below. Firefox's own
   # storage-sync engine stamps every database it creates with this
@@ -81,30 +132,159 @@ let
   # normally. Don't drop this pragma without re-verifying against a
   # fresh Firefox-created db first; a wrong version here fails exactly
   # this silently again.
-  consentOMaticSyncSeedDb = pkgs.runCommand "consent-o-matic-storage-sync-seed.sqlite" {
-    nativeBuildInputs = [ pkgs.sqlite ];
-  } ''
-    sqlite3 "$out" <<'SQL'
-    PRAGMA user_version = 2;
-    CREATE TABLE meta (
-        key TEXT PRIMARY KEY,
-        value NOT NULL
-    ) WITHOUT ROWID;
-    CREATE TABLE storage_sync_data (
-        ext_id TEXT NOT NULL PRIMARY KEY,
-        data TEXT,
-        sync_change_counter INTEGER NOT NULL DEFAULT 1
-    );
-    CREATE TABLE storage_sync_mirror (
-        guid TEXT NOT NULL PRIMARY KEY,
-        ext_id TEXT UNIQUE,
-        data TEXT,
-        CHECK((ext_id IS NULL AND data IS NULL) OR (ext_id IS NOT NULL AND data IS NOT NULL))
-    );
-    INSERT INTO storage_sync_data (ext_id, data, sync_change_counter)
-      VALUES ('gdpr@cavi.au.dk', '{"debugFlags":{"autoOpenOptionsTab":false}}', 1);
-    SQL
-  '';
+  extensionsWithSeed = lib.filterAttrs (_: ext: ext.storageSyncSeed != null) enabledExtensions;
+
+  # SQL string literals escape a single quote by doubling it; toJSON
+  # never itself emits one (JSON strings are double-quoted), but a seed
+  # value could still contain a literal apostrophe.
+  sqlQuote = s: "'" + (lib.replaceStrings [ "'" ] [ "''" ] s) + "'";
+
+  storageSyncSeedDb =
+    if extensionsWithSeed == { } then
+      null
+    else
+      pkgs.runCommand "kiosk-storage-sync-seed.sqlite" { nativeBuildInputs = [ pkgs.sqlite ]; } ''
+        sqlite3 "$out" <<'SQL'
+        PRAGMA user_version = 2;
+        CREATE TABLE meta (
+            key TEXT PRIMARY KEY,
+            value NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE storage_sync_data (
+            ext_id TEXT NOT NULL PRIMARY KEY,
+            data TEXT,
+            sync_change_counter INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE storage_sync_mirror (
+            guid TEXT NOT NULL PRIMARY KEY,
+            ext_id TEXT UNIQUE,
+            data TEXT,
+            CHECK((ext_id IS NULL AND data IS NULL) OR (ext_id IS NOT NULL AND data IS NOT NULL))
+        );
+        SQL
+        ${lib.concatMapStringsSep "\n" (
+          ext:
+          ''sqlite3 "$out" "INSERT INTO storage_sync_data (ext_id, data, sync_change_counter) VALUES (${sqlQuote ext.id}, ${sqlQuote (builtins.toJSON ext.storageSyncSeed)}, 1);"''
+        ) (lib.attrValues extensionsWithSeed)}
+      '';
+
+  extensionSubmodule = lib.types.submodule (
+    { name, ... }:
+    {
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = "Whether to install this extension.";
+        };
+
+        id = lib.mkOption {
+          type = lib.types.str;
+          example = "uBlock0@raymondhill.net";
+          description = ''
+            The extension's real Firefox/gecko extension ID
+            (browser_specific_settings.gecko.id in its manifest.json) --
+            what Firefox's ExtensionSettings policy actually keys on. The
+            attribute name (`${name}`) is only a Nix-level handle for
+            overriding this one entry from your own configuration.
+          '';
+        };
+
+        installationMode = lib.mkOption {
+          type = lib.types.enum [
+            "allowed"
+            "blocked"
+            "force_installed"
+            "normal_installed"
+          ];
+          default = "normal_installed";
+          description = ''
+            Firefox's ExtensionSettings `installation_mode` -- see
+            Mozilla's enterprise policy documentation.
+            "normal_installed" ships pre-installed and enabled but stays
+            a regular extension the user can disable/remove via
+            about:addons; "force_installed" cannot be removed.
+          '';
+        };
+
+        installUrl = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "https://addons.mozilla.org/firefox/downloads/latest/<slug>/latest.xpi";
+          description = ''
+            Where Firefox fetches this extension from. Leave null for an
+            AMO-hosted extension -- as of Firefox 153, install_url is
+            optional for those; Firefox resolves and installs the latest
+            version straight from AMO by `id` alone. Confirmed live that
+            the explicit install_url form
+            (addons.mozilla.org/.../latest.xpi) silently failed to
+            trigger an install at all on a current Firefox devedition
+            build despite working network access to AMO -- prefer
+            leaving this null unless you have a specific reason not to
+            (e.g. a non-AMO-hosted xpi URL).
+
+            Ignored when `xpi` is set -- that always installs via a
+            local file:// URL instead.
+          '';
+        };
+
+        xpi = lib.mkOption {
+          type = lib.types.nullOr lib.types.package;
+          default = null;
+          description = ''
+            A locally-built xpi (e.g. an extension you author yourself,
+            like this module's own on-screen keyboard) to force-install
+            via a file:// URL, instead of fetching one from `installUrl`.
+            Setting this on ANY extension switches the whole profile to
+            firefox-devedition and unlocks xpinstall.signatures.required
+            -- plain Firefox hard-enforces AMO signature checks with no
+            override, and devedition is the one nixpkgs Firefox variant
+            that doesn't.
+          '';
+        };
+
+        privateBrowsing = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            Whether this extension is allowed to run in a private-
+            browsing window. This module forces permanent private
+            browsing (browser.privatebrowsing.autostart), and Firefox
+            disables extensions inside private windows by default --
+            almost every extension needs this true to do anything at
+            all, which is why it defaults to true here rather than
+            false.
+          '';
+        };
+
+        storageSyncSeed = lib.mkOption {
+          type = lib.types.nullOr (lib.types.attrsOf lib.types.anything);
+          default = null;
+          example = {
+            debugFlags.autoOpenOptionsTab = false;
+          };
+          description = ''
+            Data to pre-seed into this extension's browser.storage.sync
+            before Firefox first starts, for an extension that gates
+            first-run behavior (e.g. an onboarding tab) on a flag that
+            would otherwise reset to its default every single restart.
+            Merged with every other extension's own seed (if any) into
+            one shared database -- see this module's own
+            `storageSyncSeedDb` for why that has to be shared rather than
+            per-extension, and its own PRAGMA user_version comment for a
+            correctness gotcha worth reading before relying on this for
+            a new extension.
+          '';
+        };
+
+        settings = lib.mkOption {
+          type = lib.types.attrsOf lib.types.anything;
+          default = { };
+          description = "Extra keys merged directly into this extension's ExtensionSettings entry, verbatim.";
+        };
+      };
+    }
+  );
 in
 {
   options.services.kiosk-mode = {
@@ -205,12 +385,12 @@ in
           options = {
             vendorId = lib.mkOption {
               type = lib.types.str;
-              example = "0eef";
+              example = "1234";
               description = "Matched against ATTRS{idVendor} (services.udev.extraRules).";
             };
             productId = lib.mkOption {
               type = lib.types.str;
-              example = "c002";
+              example = "5678";
               description = "Matched against ATTRS{idProduct} (services.udev.extraRules).";
             };
             calibrationMatrix = lib.mkOption {
@@ -291,52 +471,55 @@ in
       description = "Extra groups for the kiosk user beyond the default none -- e.g. `video` on a host with a USB webcam Firefox needs to open.";
     };
 
-    extensions = {
-      uBlockOrigin.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = ''
-          Force-install uBlock Origin. On by default: worth having on any
-          kiosk rendering real third-party web content. A real, AMO-
-          hosted, normally-signed extension -- installed straight from
-          addons.mozilla.org, no signature-bypass needed.
-          `installation_mode = "normal_installed"` rather than
-          "force_installed": it ships pre-installed and enabled, but
-          stays a regular extension anyone with browser UI access
-          (about:addons) can disable or remove -- not policy-locked on.
-        '';
-      };
+    extensions = lib.mkOption {
+      type = lib.types.attrsOf extensionSubmodule;
+      # The three built-in entries (uBlockOrigin/consentOMatic/
+      # autoscrollShorts) are NOT this option's own `default` -- deliberately.
+      # An attrsOf-submodule option's declaration-level `default` is one
+      # single low-priority DEFINITION of the whole attrset; it does NOT
+      # get decomposed and re-merged field-by-field against a caller's
+      # own `extensions.autoscrollShorts.enable = true;` the way you'd
+      # expect (confirmed live: doing it that way, overriding just
+      # `enable` on a built-in entry made its `id` "accessed but has no
+      # value defined", because the caller's definition of that key wins
+      # OUTRIGHT over the option's default entry for that same key,
+      # rather than merging with it field-by-field). The three entries
+      # are instead set via `lib.mkDefault` down in `config`, at the same
+      # priority (1000) plain option defaults use -- which DOES correctly
+      # merge per-field against a caller's own definitions, because at
+      # that point they're just an ordinary extra module contributing to
+      # the same nested option, not the option's own baked-in default.
+      default = { };
+      description = ''
+        Firefox extensions to install into the kiosk profile, keyed by an
+        arbitrary short Nix-level name. `uBlockOrigin`/`consentOMatic`/
+        `autoscrollShorts` ship built in (set via `lib.mkDefault` in this
+        module's own `config`, not special-cased elsewhere) -- turn any
+        of them off the same way you'd override any other default:
+        `services.kiosk-mode.extensions.uBlockOrigin.enable = false;`.
+        Add your own the same way:
 
-      consentOMatic.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = ''
-          Force-install Consent-O-Matic (auto-answers GDPR cookie-consent
-          dialogs -- built by Aarhus University's CAVI). On by default
-          for the same reason as uBlock Origin: a kiosk nobody is
-          standing at to click "Accept" through a modal cookie banner
-          needs it handled automatically.
-        '';
-      };
+        ```nix
+        services.kiosk-mode.extensions.myAdBlocker.id = "...@example.com";
+        ```
 
-      autoscrollShorts.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = ''
-          Force-install "Autoscroll Shorts" (auto-advances to the next
-          YouTube Short when the current one ends). Off by default --
-          unlike uBlock/Consent-O-Matic, this is only useful on a kiosk
-          that actually shows YouTube Shorts. Picked over several similar
-          extensions specifically because it has no storage/settings/
-          toggle at all (verified by reading its full content script) --
-          it just always runs, so there's nothing to fight against this
-          module's wipe-every-restart profile, unlike other Shorts auto-
-          scrollers that either default off or reopen their own install
-          tab every restart via a storage.local flag (much harder to
-          pre-seed than storage.sync -- see consentOMaticSyncSeedDb's own
-          comment for why storage.sync is already the harder case).
-        '';
-      };
+        uBlock Origin is on by default: worth having on any kiosk
+        rendering real third-party web content. Consent-O-Matic is on by
+        default too (auto-answers GDPR cookie-consent dialogs -- built by
+        Aarhus University's CAVI): a kiosk nobody is standing at to click
+        "Accept" through a modal cookie banner needs it handled
+        automatically. "Autoscroll Shorts" (auto-advances to the next
+        YouTube Short when the current one ends) is off by default --
+        unlike the other two, it's only useful on a kiosk that actually
+        shows YouTube Shorts; picked over several similar extensions
+        specifically because it has no storage/settings/toggle at all
+        (verified by reading its full content script), so there's nothing
+        to fight against this module's wipe-every-restart profile, unlike
+        alternatives that either default off or reopen their own install
+        tab every restart via a storage.local flag (much harder to
+        pre-seed than storage.sync -- see `storageSyncSeed`'s own
+        description for why storage.sync is already the harder case).
+      '';
     };
   };
 
@@ -347,6 +530,40 @@ in
         message = "services.kiosk-mode.idleTimeoutMinutes > 0 requires services.kiosk-mode.touch to be set -- nothing to watch for activity otherwise";
       }
     ];
+
+    # The three built-in extensions -- see the `extensions` option's own
+    # comment for why these live here (mkDefault, priority 1000) rather
+    # than in that option's declaration-level `default`.
+    #
+    # EACH FIELD gets its own `lib.mkDefault`, not one `mkDefault` wrapping
+    # the whole `{ id = ...; ... }` attrset -- confirmed live (isolated
+    # from the rest of this module, in the plain `lib.evalModules`
+    # sense) that those are NOT equivalent for an attrsOf-submodule
+    # option: wrap the whole attrset, and a caller overriding just
+    # `.enable` makes `.id` "accessed but has no value defined" --
+    # mkDefault on the outer value doesn't get decomposed field-by-field
+    # against a caller's own separate, more specific definition of the
+    # SAME entry the way you'd expect. Wrapping each field individually
+    # doesn't have this problem, because each field then arrives as its
+    # own independent, already-leaf-level definition, exactly like any
+    # other option default.
+    services.kiosk-mode.extensions = {
+      uBlockOrigin = {
+        # A real, AMO-hosted, normally-signed extension -- installed
+        # straight from addons.mozilla.org, no signature-bypass needed.
+        id = lib.mkDefault "uBlock0@raymondhill.net";
+      };
+      consentOMatic = {
+        id = lib.mkDefault "gdpr@cavi.au.dk"; # per rycee/nur-expressions' generated-firefox-addons.nix; AMO's own listing page doesn't surface it directly
+        storageSyncSeed = lib.mkDefault {
+          debugFlags.autoOpenOptionsTab = false;
+        };
+      };
+      autoscrollShorts = {
+        id = lib.mkDefault "{96d7f719-11f8-427d-898f-51b4a3803952}"; # from the actual published xpi's manifest.json, not guessed
+        enable = lib.mkDefault false;
+      };
+    };
 
     # Prevents a real, repeatedly-hit race rather than papering over it:
     # cage always claims tty1 (TTYPath in nixpkgs' cage module), and
@@ -380,10 +597,10 @@ in
     programs.firefox = {
       enable = true;
       # devedition specifically: requireSigning=false, needed to install
-      # the unsigned on-screen-keyboard/nav extension at all. Plain
-      # firefox hard-enforces AMO signature checks with no override --
-      # only worth the non-default package when actually needed.
-      package = if enableNavExtension then pkgs.firefox-devedition else pkgs.firefox;
+      # any unsigned (locally-built) extension at all. Plain firefox
+      # hard-enforces AMO signature checks with no override -- only worth
+      # the non-default package when actually needed.
+      package = if needsUnsignedInstall then pkgs.firefox-devedition else pkgs.firefox;
       policies = lib.mkMerge [
         {
           DisableAppUpdate = true;
@@ -409,15 +626,15 @@ in
             Status = "locked";
           };
         }
-        (lib.mkIf enableNavExtension {
-          Preferences = {
-            "xpinstall.signatures.required" = {
-              Value = false;
-              Status = "locked";
-            };
+        (lib.mkIf needsUnsignedInstall {
+          Preferences."xpinstall.signatures.required" = {
+            Value = false;
+            Status = "locked";
           };
-          Extensions.Install = [ "file://${kioskKeyboardXpi}" ];
-          ExtensionSettings."kiosk-keyboard@dashboard.local" = {
+          Extensions.Install = installXpiUrls;
+        })
+        (lib.mkIf enableNavExtension {
+          ExtensionSettings."kiosk-keyboard@kiosk-mode.local" = {
             installation_mode = "allowed";
             # Required for BOTH `mode` values, not just "custom" --
             # scripts/firefox-kiosk.sh sets
@@ -427,45 +644,7 @@ in
             private_browsing = true;
           };
         })
-        (lib.mkIf cfg.extensions.uBlockOrigin.enable {
-          ExtensionSettings."uBlock0@raymondhill.net" = {
-            # No install_url: as of Firefox 153, it's optional for
-            # AMO-hosted extensions -- omitted, Firefox resolves and
-            # installs the latest version straight from AMO by extension
-            # ID instead. Confirmed live that the explicit install_url
-            # form (addons.mozilla.org/.../latest.xpi) silently failed to
-            # trigger an install at all on a current Firefox devedition
-            # build, despite working network access to AMO -- use the
-            # ID-only form current Firefox versions expect.
-            installation_mode = "normal_installed";
-            # Same private-browsing gotcha as kiosk-keyboard above --
-            # without this, uBlock installs but never actually runs.
-            private_browsing = true;
-          };
-        })
-        (lib.mkIf cfg.extensions.consentOMatic.enable {
-          # ID per rycee/nur-expressions' generated-firefox-addons.nix --
-          # not guessed, since AMO's own listing page doesn't surface the
-          # extension ID directly.
-          ExtensionSettings."gdpr@cavi.au.dk" = {
-            installation_mode = "normal_installed";
-            private_browsing = true;
-          };
-        })
-        (lib.mkIf cfg.extensions.autoscrollShorts.enable {
-          # ID from the actual published xpi's manifest.json (downloaded
-          # and inspected directly from AMO), not guessed. No install_url,
-          # same Firefox-153+ AMO-by-ID reasoning as uBlock above.
-          ExtensionSettings."{96d7f719-11f8-427d-898f-51b4a3803952}" = {
-            installation_mode = "normal_installed";
-            # Still required even though this extension has no storage/
-            # settings of its own to be blocked by -- private_browsing
-            # controls whether its CONTENT SCRIPT is allowed to run in a
-            # private window at all, independent of what the extension
-            # does or doesn't persist.
-            private_browsing = true;
-          };
-        })
+        { ExtensionSettings = extensionSettingsFromApi; }
       ];
     };
 
@@ -498,9 +677,12 @@ in
       // lib.optionalAttrs enableNavExtension {
         KIOSK_EXTENSION_XPI = "${kioskKeyboardXpi}";
       }
-      # Same reasoning as KIOSK_EXTENSION_XPI above.
-      // lib.optionalAttrs cfg.extensions.consentOMatic.enable {
-        CONSENT_O_MATIC_SYNC_SEED_DB = "${consentOMaticSyncSeedDb}";
+      # Same reasoning as KIOSK_EXTENSION_XPI above -- only referenced by
+      # scripts/firefox-kiosk.sh via this env var, so this is also what
+      # makes a *content* change to that db (e.g. a new extension setting
+      # storageSyncSeed) actually reach a running kiosk on redeploy.
+      // lib.optionalAttrs (storageSyncSeedDb != null) {
+        KIOSK_STORAGE_SYNC_SEED_DB = "${storageSyncSeedDb}";
       };
     };
     systemd.services."cage-tty1" = {

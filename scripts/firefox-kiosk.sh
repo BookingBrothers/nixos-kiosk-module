@@ -43,12 +43,14 @@ user_pref("browser.privatebrowsing.autostart", true);
 user_pref("signon.rememberSignons", false);
 EOF
 
-# See ../default.nix's `consentOMaticSyncSeedDb` comment: pre-seeds
-# Consent-O-Matic's own "already seen the options page once" flag so a
-# freshly-wiped profile doesn't reopen it on every single kiosk restart.
-# Only set when enableConsentOMatic is on.
-if [ -n "${CONSENT_O_MATIC_SYNC_SEED_DB:-}" ]; then
-  cp "$CONSENT_O_MATIC_SYNC_SEED_DB" "$PROFILE_DIR/storage-sync-v2.sqlite"
+# See ../default.nix's `storageSyncSeedDb` comment: pre-seeds any
+# extension's browser.storage.sync data (e.g. Consent-O-Matic's own
+# "already seen the options page once" flag) so a freshly-wiped profile
+# doesn't lose it -- and doesn't re-trigger whatever it gates -- on every
+# single kiosk restart. Only set when at least one configured extension
+# sets `storageSyncSeed`.
+if [ -n "${KIOSK_STORAGE_SYNC_SEED_DB:-}" ]; then
+  cp "$KIOSK_STORAGE_SYNC_SEED_DB" "$PROFILE_DIR/storage-sync-v2.sqlite"
   # The source is a read-only Nix store path; Firefox needs to write to
   # this file (WAL journal, any later change to synced storage), not just
   # read it.
