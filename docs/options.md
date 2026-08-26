@@ -166,7 +166,15 @@ attribute set of (submodule)
 *Default:*
 
 ```nix
-{ }
+{
+  uBlockOrigin = { id = "uBlock0@raymondhill.net"; };
+  consentOMatic = {
+    id = "gdpr@cavi.au.dk";
+    storageSyncSeed = { debugFlags.autoOpenOptionsTab = false; };
+  };
+  autoscrollShorts = { id = "{96d7f719-11f8-427d-898f-51b4a3803952}"; enable = false; };
+}
+
 ```
 
 *Declared by:*
@@ -596,7 +604,11 @@ attribute set of (submodule)
 *Default:*
 
 ```nix
-{ }
+{
+  back = { icon = "←"; action = "back"; enable = false; };
+  home = { icon = "⌂"; action = config.services.kiosk-mode.url; enable = false; };
+}
+
 ```
 
 *Declared by:*
@@ -663,10 +675,11 @@ string
 A single glyph rendered as the button’s content\. Any
 Unicode character works – arrows, symbols, emoji (e\.g\.
 U+2190 “←” for back, U+2302 “⌂” for home)\. Browse
-https://unicode-table\.com or similar for something to
-pick by name/category rather than committing this
-module to bundling and versioning an actual icon-font
-dependency for what’s normally a one-or-two-button bar\.
+[unicode-table\.com](https://unicode-table\.com) or
+similar for something to pick by name/category rather
+than committing this module to bundling and versioning
+an actual icon-font dependency for what’s normally a
+one-or-two-button bar\.
 
 
 
