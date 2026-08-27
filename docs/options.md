@@ -1103,8 +1103,15 @@ redirect check exists to cover for http(s)\. This instead
 configures Firefox’s Handlers policy directly, at the layer
 that resolves ANY navigation to one of these schemes (a
 click, a script-driven ` location.href ` change, a redirect –
-it doesn’t matter how it was reached), to have no default
-handler and never ask\.
+it doesn’t matter how it was reached), to hand off to a real
+but inert default (this kiosk’s own ` url `) instead of asking
+– confirmed live that Mozilla’s own documented “no default
+handler” config (` ask=false ` with an empty-object handler)
+does NOT actually suppress the dialog despite what the docs
+imply; only giving it a genuine handler to silently use does\.
+The current tab’s own location never actually changes when
+this fires (confirmed live), so this is a fail-safe target
+rather than something a visitor would ever actually see\.
 
 ` [ ] ` here (the option’s own declared default) is NOT what
 actually ships – this module’s own ` config ` separately

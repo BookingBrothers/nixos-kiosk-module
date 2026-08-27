@@ -593,7 +593,27 @@ let
     Handlers.schemes = lib.genAttrs effectiveBlockedSchemes (_scheme: {
       action = "useHelperApp";
       ask = false;
-      handlers = [ { } ];
+      # A real handler, not `[ { } ]` -- confirmed via an isolated local
+      # repro that an empty-object "no default handler" entry (Mozilla's
+      # own documented way to configure one) does NOT actually suppress
+      # Firefox's native "choose an application" dialog despite
+      # ask=false; only giving it a genuine, concrete default to
+      # silently use does. uriTemplate must be https and contain a
+      # literal %s (Mozilla's own requirement) -- appended as a harmless
+      # URL fragment, never actually substituted/visited in practice
+      # (also confirmed live: the current tab's own location never
+      # changes when this fires, so this handler target is only ever
+      # reached if Firefox's behavior here changes in some future
+      # version). Points at this kiosk's own `url` rather than e.g. a
+      # reserved/dead domain so that IF it's ever actually visited, a
+      # visitor sees the kiosk's own home page, not a foreign domain or
+      # a blank connection-error page.
+      handlers = [
+        {
+          name = "kiosk-mode";
+          uriTemplate = "${cfg.url}#%s";
+        }
+      ];
     });
   };
 in
@@ -1040,8 +1060,15 @@ in
           configures Firefox's Handlers policy directly, at the layer
           that resolves ANY navigation to one of these schemes (a
           click, a script-driven `location.href` change, a redirect --
-          it doesn't matter how it was reached), to have no default
-          handler and never ask.
+          it doesn't matter how it was reached), to hand off to a real
+          but inert default (this kiosk's own `url`) instead of asking
+          -- confirmed live that Mozilla's own documented "no default
+          handler" config (`ask=false` with an empty-object handler)
+          does NOT actually suppress the dialog despite what the docs
+          imply; only giving it a genuine handler to silently use does.
+          The current tab's own location never actually changes when
+          this fires (confirmed live), so this is a fail-safe target
+          rather than something a visitor would ever actually see.
 
           `[ ]` here (the option's own declared default) is NOT what
           actually ships -- this module's own `config` separately
